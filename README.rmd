@@ -1,0 +1,56 @@
+---
+output:
+  md_document:
+    variant: markdown_github
+---
+
+# Purpose
+
+This work folder was created to be used in the evaluation for the Financial Econometrics course presented at Stellebosch University for the purpose of completing my Mcom (Economics). 
+It outlines ... and for this practical, I will attempt to do ... 
+
+```{r, include=FALSE}
+
+rm(list = ls()) # Clean your environment:
+gc() # garbage collection - It can be useful to call gc after a large object has been removed, as this may prompt R to return memory to the operating system.
+```
+
+```{r, message=FALSE}
+library(pacman)
+pacman::p_load(tidyverse, fmxdat, Texevier, )
+```
+
+
+# Description
+
+This folder was created using the fmxdat package (https://github.com/Nicktz/fmxdat) with the following code:
+```{r, eval=FALSE}
+fmxdat::make_project()
+```
+
+In addition, the folders used for the seperate questions (see *Question 1* and *Question 2*) were created using the Texevier package (https://github.com/Nicktz/Texevier):
+
+```{r, eval=FALSE}
+
+Texevier::create_template_html(directory = 'Questions', template_name = 'Question_1')
+# Alternatively, for knitting to PDF: Texevier::create_template(directory = 'Questions', template_name = 'Question_1')
+
+```
+
+
+## Data
+
+The relevant data used in completing this practical was sourced from: https://www.fmx.nfkatzke.com/FMX_data_2021.zip
+
+*PROVIDE SHORT DESCRIPTION OF THE DATA* 
+
+
+
+
+
+
+
+
+
+
+
