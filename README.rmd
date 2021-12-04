@@ -41,7 +41,8 @@ In addition, the folders used for the seperate questions (inside the "root" *Que
 ```{r, eval=FALSE}
 
 Texevier::create_template_html(directory = 'Questions', template_name = 'Question_1')
-# Alternatively, for knitting to PDF: Texevier::create_template(directory = 'Questions', template_name = 'Question_1')
+Texevier::create_template_html(directory='Questions', template_name = 'Question_2')
+
 
 ```
 
@@ -63,6 +64,10 @@ somedat <- read_rds("data/some_data.rds")
 # Question 1
 
 
+# Question 2
+
+```{r}
+```
 
 
 

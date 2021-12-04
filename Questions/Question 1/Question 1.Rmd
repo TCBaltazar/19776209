@@ -31,7 +31,7 @@ abstract: |
 knitr::opts_chunk$set(echo = FALSE, ig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
                       message=FALSE, warning=FALSE, comment = NA)
 library(pacman)
-pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate, pastecs)
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate, pastecs, ggpubr, Hmisc, corrplot)
 ```
 
 \newpage
@@ -175,13 +175,81 @@ BE_Infl %>% spread(Name, Price) %>%
 
 ```{r}
 
+ZA_Infl %>% spread(Name, Price) %>% filter(date>ymd(20120506)) %>%
+    ggplot() + geom_line(aes(date, ZAR_Infl)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="ZA Inflation", subtitle="ZA Inflation (2012-2021)")
+
+```
+
+```{r}
+
+usdzar %>% spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy) %>% filter(date>ymd(20120506)) %>%
+    ggplot() + geom_line(aes(date, USDZAR)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="USDZAR Spot", subtitle="USDZAR Spot (2012-2021)")
+```
+
+
+
+```{r}
+
 VIX %>% filter(Name=="VXEEM", date>ymd(20120506)) %>% spread(Name, Price) %>%
     ggplot() + geom_line(aes(date, VXEEM)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
     labs(x="Year", y="VXEEM", subtitle="Emerging Market Volatility (2012-2021)")
 
 ```
 
-From the above figure, can see that EM volatility increased significantly in 2015 (Taper Tantrum) and 2020 (COVID-pandemic)
+From the above figure, can see that EM volatility increased significantly in 2015 (Taper Tantrum) and 2020 (COVID-pandemic).
+
+## Correlation Analysis
+
+```{r, include=FALSE}
+consolidated_SA <- left_join(SA_2Yr, 
+                          VIX %>% filter(Name=="VXEEM", date>ymd(20120506)) %>% spread(Name, Price),
+                          by="date") %>%
+    left_join(., SA_bonds %>% arrange(date) %>% select(date, ZA_10Yr) %>% filter(date>ymd(20120506)),
+              by="date") %>% 
+    left_join(., BE_Infl %>% spread(Name, Price), by="date") %>%
+    left_join(., usdzar %>% spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy) %>% filter(date>ymd(20120506)), by="date")
+
+
+M <- consolidated_SA %>% select(-date)
+M1 <- cor(M)
+
+
+cor.mtest <- function(mat, ...) {
+ mat <- as.matrix(mat)
+n <- ncol(mat)
+p.mat<- matrix(NA, n, n)
+diag(p.mat) <- 0
+for (i in 1:(n - 1)) {
+     for (j in (i + 1):n) {
+         tmp <- cor.test(mat[, i], mat[, j], ...)
+           p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+       }
+   }
+   colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+   p.mat
+ }
+p.mat <- cor.mtest(M)
+
+corrplot(M1, type="lower", order="hclust")
+```
+
+```{r}
+
+corrplot(M1, type="lower", order="hclust",  p.mat = p.mat, sig.level = 0.01, insig = "blank")
+
+```
+
+Correlation between Break-Even inflation (SAGGBE10) and Medium term (2Yr) bond yields significant and positive. 
+Correlation between the USDZAR exchange rate and Long term (10Yr) bond yields significant and positive.
+
+```{r}
+
+consolidated_SA %>% select(date, ZA_10Yr, USDZAR) %>%
+    ggplot(aes(x=ZA_10Yr, y=USDZAR)) + geom_point() + geom_smooth(method=lm) +fmxdat::theme_fmx() + fmxdat::fmx_cols()
+
+```
 
 
 ## Results 

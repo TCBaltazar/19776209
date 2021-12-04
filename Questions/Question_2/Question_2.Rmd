@@ -1,0 +1,137 @@
+---
+title: "Question 2: Portfolio Construction"
+author: "TC Baltazar (19776209)"
+date: "December 2021"
+# date: "`r Sys.Date()`"
+bibliography: Tex/ref.bib       # Do not edit: Keep this naming convention and location.
+output:
+  pagedown::html_paged:
+    # template: wp_paged.html
+    # css: ['wp.css', 'wp-fonts.css', 'wp-page.css']
+    css: ["Template/default-fonts-Texevier.css", "Template/default-page-Texevier.css", "Template/default-Texevier.css"]
+    csl: Template/harvard-stellenbosch-university.csl # referencing format used.
+    template: ["Template/paged-Texevier.html"]
+
+    toc: true
+    # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
+    self_contained: TRUE
+abstract: |
+    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
+    Abstracts have no spaces, but can have bullets.
+
+    Bullets can be created as follows
+
+    + You can add bullets, but do not add colons please.
+
+    + Line breaks are also not permitted.
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+library(pacman)
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate)
+```
+
+\newpage
+
+# Introduction {-}
+
+
+# Data  {-}
+
+```{r}
+T40 <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/T40.rds")
+Reb_Days <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/Rebalance_days.rds")
+USDZAR <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/usdzar.rds")
+```
+
+
+## Exploratory Analysis
+
+```{r}
+T40_info <- left_join(T40 %>% select(Short.Name) %>% unique() %>% mutate(N=(1:92)),
+                      T40 %>% select(Tickers) %>% unique() %>% mutate(N=(1:92)),
+                      by="N") %>% select(-N) %>% arrange(Tickers)
+
+T40 <- T40 %>% rename("ALSI"=J200) %>% rename("SWIX"=J400) %>% select(-Short.Name)
+
+T40$Tickers <- gsub(" SJ Equity", "", T40$Tickers)
+
+    
+```
+
+Checking for missing values in returns yields `r sum(is.na(T40$Return))`. We can therefore proceed with the analysis.
+
+*Considering only indeces that have data from first period 2008-01-02 until last period 2021-10-29* ... initially, 92 Tickers in total
+
+```{r}
+
+T40 <- T40 %>% arrange(date) %>%
+    filter(!is.na(Return)) %>%
+    mutate(YearMonth=format(date, "%Y%B"))
+
+# Considering only indeces with data from before 2008-01-01, and using this as common start date
+
+T40_cons <- T40 %>% group_by(Tickers) %>%
+    filter(date<ymd(20080103)) %>%
+    ungroup() %>%
+    pull(Tickers) %>% unique() # only 41 Tickers have data from the first date (2008-01-02)
+
+T40 <- T40 %>% filter(Tickers %in% T40_cons) %>%
+    filter(date>ymd(20080101)) %>% pull(Tickers) %>% unique()
+
+# Only 
+
+```
+
+*Issues*
+SAB classified as Large Cap, from 2016 has NA in index_name
+
+
+
+
+
+
+```{r}
+
+T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Sector)
+
+```
+
+```{r}
+
+T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Index_Name)
+
+# Some companies have sector info missing
+```
+
+
+
+## Stratification using USDZAR
+
+```{r}
+USDZAR %>% filter(date==last(date)) # need to restrict T40 data for Tickers that have data until this date.
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
