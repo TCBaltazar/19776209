@@ -9,7 +9,7 @@ Below, the r setup used throughout. Importantly, the packages loaded for
 each question vary depending on the respective requirements.
 
 ``` r
-knitr::opts_chunk$set(echo = FALSE, ig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
+knitr::opts_chunk$set(fig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
                       message=FALSE, warning=FALSE, comment = NA)
 library(pacman)
 pacman::p_load(fmxdat, Texevier, knitr, kableExtra, tidyverse)
@@ -20,9 +20,18 @@ pacman::p_load(fmxdat, Texevier, knitr, kableExtra, tidyverse)
 This folder was created using the fmxdat package
 (<https://github.com/Nicktz/fmxdat>) with the following code:
 
-In addition, the folders used for the seperate questions (see *Question
-1* and *Question 2*) were created using the Texevier package
+``` r
+fmxdat::make_project()
+```
+
+In addition, the folders used for the seperate questions (inside the
+“root” *Questions* folder) were created using the Texevier package
 (<https://github.com/Nicktz/Texevier>):
+
+``` r
+Texevier::create_template_html(directory = 'Questions', template_name = 'Question_1')
+# Alternatively, for knitting to PDF: Texevier::create_template(directory = 'Questions', template_name = 'Question_1')
+```
 
 ## Data
 

@@ -28,8 +28,10 @@ abstract: |
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
-pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse)
+knitr::opts_chunk$set(echo = FALSE, ig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
+                      message=FALSE, warning=FALSE, comment = NA)
+library(pacman)
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate, pastecs)
 ```
 
 \newpage
@@ -44,81 +46,143 @@ Writing in Rmarkdown is surprizingly easy - see [this website](https://www.rstud
 
 # Data  {-}
 
-Notice how I used the curly brackets and dash to remove the numbering of the data section.
+```{r, include=FALSE}
 
-Discussion of data should be thorough with a table of statistics and ideally a figure.
+SA_bonds <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/SA_Bonds.rds") %>%
+    rename("ZA_3M"=SA_3M)
+BE_Infl <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/BE_Infl.rds")
+bonds_2y <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/bonds_2y.rds")
+bonds_10y <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/bonds_10y.rds")
+usdzar <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/usdzar.rds")
+ZA_Infl <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/ZA_Infl.rds")
+VIX <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/IV.rds")
+ZAR_IY <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/ZAR_IY.rds")
+```
 
-In your tempalte folder, you will find a Data and a Code folder. In order to keep your data files neat, store all of them in your Data folder. Also, I strongly suggest keeping this Rmd file for writing and executing commands, not writing out long pieces of data-wrangling. In the example below, I simply create a ggplot template for scatter plot consistency. I suggest keeping all your data in a data folder.
+## Descriptive Statistics
+*BE inflation data only available from 2012-05-07* therefore use this as starting date for analyzing yield spreads in local (ZA) bond market (comparably)
 
-<!-- The following is a code chunk. It must have its own unique name (after the r), or no name. After the comma follows commands for R which are self-explanatory. By default, the code and messages will not be printed in your pdf, just the output: -->
+```{r}
+pastecs::stat.desc(SA_bonds[, -1])%>% kable(caption="Summary Statistics: SA Bonds",  format="html", digits=2)
+# Since 2011
+pastecs::stat.desc(SA_bonds %>% filter(date>ymd(20120506)) %>%
+            .[, -1]) %>%  kable(caption="Summary Statistics: SA Bonds (2)",  format="html", digits=2)
+```
 
-```{r }
+```{r}
+pastecs::stat.desc(BE_Infl %>% spread(Name, Price) %>% arrange(date) %>% .[, -1]) %>% kable(caption="Summary Statistics: BE Inflation", format="html", digits=2)
+```
 
-  # This is just a random plot to show you a plot. This is done if the getwd() does not point to your Template's directory.
-  # Set WD below to your project's working directory.
+```{r}
+bonds_2y$Name <- gsub("_2yr", "", bonds_2y$Name) # remove unnecessary label
+BRICS <- c("Brazil", "CHINA", "India", "Russia")
+pastecs::stat.desc(bonds_2y %>% filter(Name %in% BRICS) %>% 
+            arrange(date) %>% spread(Name, Bond_2Yr) %>% 
+            filter(date>ymd(20120506)) %>%
+            .[,-1]) %>% kable(caption="Summary Statistics: BRIC 2yr Bonds", format="html", digits=2)
 
-  g <-
-  ggplot(data = mtcars) +
-  geom_point(aes(x = disp, y = hp, color = cyl)) +
-  theme_bw() +
-  # theme(legend.position = "none") +
-  theme(plot.title = element_text(size = 10)) +
-  theme(axis.title = element_text(size = 10),
-        axis.title.x = element_text()) +
-  labs(y = "y-axis", x = "x-axis", title = "Some amazing plot")
+```
 
-g
 
+```{r}
+
+bonds_10y$Name <- gsub("_10Yr", "", bonds_10y$Name)
+
+pastecs::stat.desc(bonds_10y %>% filter(Name %in% BRICS) %>%
+                       arrange(date) %>% spread(Name, Bond_10Yr) %>%
+                       filter(date>ymd(20120506)) %>%
+                       .[,-1])  %>% kable(caption="Summary Statistics: BRIC 10yr Bonds", format="html", digits=2)
+                       
+```
+
+
+```{r}
+
+pastecs::stat.desc(usdzar %>% spread(Name, Price) %>%
+                       arrange(date) %>% filter(date>ymd(20120506)) %>%
+                       .[,-1]) %>% kable(caption="Summary Statistics: USDZAR Spot", format="html", digits=2)
+```
+
+```{r}
+pastecs::stat.desc(ZA_Infl %>% spread(Name, Price) %>%
+                       arrange(date) %>% filter(date>ymd(20120506)) %>%
+                       .[,-1]) %>% kable(caption="Summary Statistics: ZA Inflation", format="html", digits=2)
 ```
 
 
 
 
+```{r}
 
-#  Methodology \label{Meth}
+pastecs::stat.desc(VIX %>% filter(Name=="VXEEM") %>% spread(Name, Price) %>% arrange(date) %>%
+    filter(date>ymd(20120506)) %>%
+    .[,-1]) %>% kable(caption="Summary Statistics: VIX (Emerging Markets)", format="html", digits=2)
 
-## Subsection 
-Ideally do not overuse subsections. It equates to bad writing.^[This is an example of a footnote by the way. Something that should also not be overused.]
-
-## Math section 
-
-Equations should be written as such:
-
-\begin{align}
-\beta = \sum_{i = 1}^{\infty}\frac{\alpha^2}{\sigma_{t-1}^2} \label{eq1} \\
-\int_{x = 1}^{\infty}x_{i} = 1 \notag
-\end{align}
-
-If you would like to see the equations as you type in Rmarkdown, use $ symbols instead (see this for yourself by adjusted the equation):
-
-$$
-\beta = \sum_{i = 1}^{\infty}\frac{\alpha^2}{\sigma_{t-1}^2} \\
-\int_{x = 1}^{\infty}x_{i} = 1
-$$
-
-Note again the reference to equation \ref{eq1}. Writing nice math requires practice. Note I used a forward slashes to make a space in the equations. I can also align equations using  __\&__, and set to numbering only the first line. Now I will have to type ``begin equation'' which is a native \LaTeX command. Here follows a more complicated equation:
+```
 
 
-\begin{align}
-	y_t &= c + B(L) y_{t-1} + e_t   \label{eq2}    \\ \notag
-	e_t &= H_t^{1/2}  z_t ; \quad z_t \sim  N(0,I_N) \quad \& \quad H_t = D_tR_tD_t \\ \notag
-		D_t^2 &= {\sigma_{1,t}, \dots, \sigma_{N,t}}   \\ \notag
-		\sigma_{i,t}^2 &= \gamma_i+\kappa_{i,t}  v_{i, t-1}^2 +\eta_i  \sigma_{i, t-1}^2, \quad \forall i \\ \notag
-		R_{t, i, j} &= {diag(Q_{t, i, j}}^{-1}) . Q_{t, i, j} . diag(Q_{t, i, j}^{-1})  \\ \notag
-		Q_{t, i, j} &= (1-\alpha-\beta)  \bar{Q} + \alpha  z_t  z_t'  + \beta  Q_{t, i, j} \notag
-\end{align}
+## Figures
 
-Note that in \ref{eq2} I have aligned the equations by the equal signs. I also want only one tag, and I create spaces using ``quads''.
+```{r}
 
-See if you can figure out how to do complex math using the two examples provided in \ref{eq1} and \ref{eq2}.
+SA_bonds %>% gather(Type, Val, -date) %>% group_by(Type) %>% arrange(date) %>%
+    ggplot() + geom_line(aes(date, Val, color=Type)) + theme_bw() +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Bond Yields",
+         subtitle="ZA Historical Bond Yields (1999-2021)")
 
-<!-- $$ -->
-<!-- This is a commented out section in the writing part. -->
-<!-- Comments are created by highlighting text, amnd pressing CTL+C -->
-<!-- \\begin{align} -->
-<!-- \\beta = \\alpha^2 -->
-<!-- \end{align} -->
-<!-- $$ -->
+```
+
+### BRICS Bond Yields
+
+```{r}
+
+SA_2Yr <- SA_bonds %>% arrange(date) %>% select(date, ZA_2Yr) %>% filter(date>ymd(20120506)) 
+
+BRIC_2Yr <- bonds_2y %>% filter(Name %in% BRICS) %>% spread(Name, Bond_2Yr) %>% 
+    setNames(c("date", "BRA_2Yr", "CHN_2Yr", "IND_2Yr", "RUS_2Yr")) %>% filter(date>ymd(20120506))
+
+BRICS_2Yr <- left_join(SA_2Yr, BRIC_2Yr, by="date") %>% gather(Ticker, Val, -date) 
+
+BRICS_2Yr %>% ggplot() +
+    geom_line(aes(date, Val, color=Ticker))  +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Bond Yields",
+         subtitle="BRICS 2Yr Bond Yields (2012-2021)")
+
+```
+
+```{r}
+
+BRICS_10Yr <- left_join(SA_bonds %>% arrange(date) %>% select(date, ZA_10Yr) %>% filter(date>ymd(20120506)), 
+                        bonds_10y %>% filter(Name %in% BRICS) %>% spread(Name, Bond_10Yr) %>% 
+    setNames(c("date", "BRA_10Yr", "CHN_10Yr", "IND_10Yr", "RUS_10Yr")) %>% filter(date>ymd(20120506)), by="date") %>%
+    gather(Tickers, Val, -date) 
+
+BRICS_10Yr %>% ggplot() + geom_line(aes(date, Val, color=Tickers)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Bond Yields",
+         subtitle="BRICS 10Yr Bond Yields (2012-2021)")
+    
+
+```
+
+
+```{r}
+
+BE_Infl %>% spread(Name, Price) %>%
+    ggplot() + geom_line(aes(date, SAGGBE10)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Break-Even Inflation", subtitle="BE Inflation (2012-2021)")
+
+```
+
+```{r}
+
+VIX %>% filter(Name=="VXEEM", date>ymd(20120506)) %>% spread(Name, Price) %>%
+    ggplot() + geom_line(aes(date, VXEEM)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="VXEEM", subtitle="Emerging Market Volatility (2012-2021)")
+
+```
+
+From the above figure, can see that EM volatility increased significantly in 2015 (Taper Tantrum) and 2020 (COVID-pandemic)
+
 
 ## Results 
 

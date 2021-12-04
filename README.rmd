@@ -20,10 +20,10 @@ Below, the r setup used throughout. Importantly, the packages loaded for each qu
 
 
 ```{r setup, message=FALSE}
-knitr::opts_chunk$set(echo = FALSE, ig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
+knitr::opts_chunk$set(fig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
                       message=FALSE, warning=FALSE, comment = NA)
 library(pacman)
-pacman::p_load(fmxdat, Texevier, knitr, kableExtra, tidyverse)
+pacman::p_load(fmxdat, Texevier, knitr, kableExtra, tidyverse, readr)
 
 ```
 
@@ -36,7 +36,7 @@ This folder was created using the fmxdat package (https://github.com/Nicktz/fmxd
 fmxdat::make_project()
 ```
 
-In addition, the folders used for the seperate questions (see *Question 1* and *Question 2*) were created using the Texevier package (https://github.com/Nicktz/Texevier):
+In addition, the folders used for the seperate questions (inside the "root" *Questions* folder) were created using the Texevier package (https://github.com/Nicktz/Texevier):
 
 ```{r, eval=FALSE}
 
@@ -46,11 +46,21 @@ Texevier::create_template_html(directory = 'Questions', template_name = 'Questio
 ```
 
 
-## Data
+# Data
 
-The relevant data used in completing this practical was sourced from: https://www.fmx.nfkatzke.com/FMX_data_2021.zip
+The relevant data used in completing this practical was sourced from: https://www.fmx.nfkatzke.com/FMX_data_2021.zip.
 
-*PROVIDE SHORT DESCRIPTION OF THE DATA* 
+The data sourced was all in .rds format, with accompanying txt files providing brief descriptions for the relevant datasets. Data used to complete this practical was placed in the "data" folder. These datasets, however, are not available on this github (due to storage constraints), and were excluded from the commits by updating the .gitignore file: specifying that objects in "data/" should be ignored. In this folder, there is a README.md file which provides an overview of the data. The data used to complete questions will be specified when these questions are addressed.
+
+Data in .rds format was uploaded to the environment using code in the following format:
+
+```{r, eval=FALSE}
+
+somedat <- read_rds("data/some_data.rds")
+
+```
+
+# Question 1
 
 
 
