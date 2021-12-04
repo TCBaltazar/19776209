@@ -1,0 +1,346 @@
+---
+title: "Question 3: Volatility Comparison"
+author: "TC Baltazar (19776209)"
+date: "December 2021"
+# date: "`r Sys.Date()`"
+bibliography: Tex/ref.bib       # Do not edit: Keep this naming convention and location.
+output:
+  pagedown::html_paged:
+    # template: wp_paged.html
+    # css: ['wp.css', 'wp-fonts.css', 'wp-page.css']
+    css: ["Template/default-fonts-Texevier.css", "Template/default-page-Texevier.css", "Template/default-Texevier.css"]
+    csl: Template/harvard-stellenbosch-university.csl # referencing format used.
+    template: ["Template/paged-Texevier.html"]
+
+    toc: true
+    # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
+    self_contained: TRUE
+abstract: |
+    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
+    Abstracts have no spaces, but can have bullets.
+
+    Bullets can be created as follows
+
+    + You can add bullets, but do not add colons please.
+
+    + Line breaks are also not permitted.
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse,
+               lubridate, psych, broom,
+               FactoMineR, factoextra, devtools, rmsfuns,
+               huxtable, fmxdat)
+```
+
+\newpage
+
+# Introduction {-}
+
+
+
+# Data  {-}
+
+
+```{r, include=FALSE}
+T40 <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/T40.rds")
+
+T40$Tickers <- gsub(" SJ Equity", "", T40$Tickers)
+
+T40 <- T40 %>% select(-Short.Name, -J400) 
+
+T40 <- T40 %>% group_by(Tickers) %>% arrange(date) %>% 
+    mutate(Avg1=mean(J200, na.rm=T)) %>%
+    mutate(Avg1=coalesce(Avg1, 0)) %>%
+    mutate(J200=coalesce(J200, Avg1)) %>%
+    mutate(across(.cols=J200, .fns=~log(.)-log(lag(.)), .names="{col}_Returns")) %>%
+    filter(date>first(date)) %>%
+    select(-Avg1) %>%
+    mutate(Avg2=mean(J200_Returns, na.rm=T)) %>%
+    mutate(Avg2=coalesce(Avg2, 0)) %>%
+    mutate(J200_Returns=coalesce(J200_Returns, Avg2)) %>%
+    select(-Avg2) %>%
+    ungroup()
+# using average J200 Returns, to replace NA's
+```
+
+## Exploratory Analysis
+
+```{r}
+
+T40 %>% ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) +
+labs(x="Year") + theme_bw() + facet_wrap(~Sector)
+
+```
+
+```{r}
+
+T40 %>% ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) +
+    labs(x="Year") + theme_bw()
+
+```
+
+
+## Outliers (?)
+
+```{r}
+
+T40 %>% mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>% 
+    ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) + 
+    labs(x="Year") + theme_bw() + facet_wrap(~Sector)
+
+```
+
+
+```{r}
+
+T40 %>% mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>% 
+    ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) + 
+    labs(x="Year") + theme_bw() 
+
+```
+
+
+# Principal Component Analysis
+
+To do PCA, first eliminate outliers and remove columns with only NA's, then need to demean and scale the data.
+
+```{r}
+
+data_wide <- T40 %>% select(date, Tickers, J200_Returns) %>%
+    mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>%
+    mutate(J200_Returns=J200_Returns-mean(J200_Returns)) %>%
+    spread(Tickers, J200_Returns)
+
+data_wide <- data_wide[, colSums(is.na(data_wide)) < nrow(data_wide)] %>% 
+.[, colSums(is.na(.) | . == 0, na.rm = TRUE) <= 150] %>% select(-date)
+
+data_wide[is.na(data_wide)] <- 0
+
+
+df_PCA <- PCA(data_wide, graph = FALSE, scale.unit = TRUE)
+str(df_PCA)
+```
+
+
+
+```{r}
+violinBy(data_wide %>% as.matrix)
+```
+
+## Scree Plot
+
+```{r}
+fviz_screeplot(df_PCA, ncp = 10)
+```
+
+## Importance of Components
+
+```{r}
+fviz_pca_var(df_PCA, col.var = "steelblue") + theme_minimal()
+
+```
+
+```{r}
+
+df_PCA$var$contrib %>% kable()
+
+```
+
+```{r}
+
+df_PCA$var$cos2 %>% kable()
+
+```
+
+Total Contribution to first two Principal Components
+
+```{r}
+fviz_contrib(df_PCA, choice = "var", axes = 1)
+
+```
+
+```{r}
+fviz_contrib(df_PCA, choice = "var", axes = 2)
+
+```
+
+```{r}
+fviz_contrib(df_PCA, choice = "var", axes = 1:2)
+
+```
+
+## Stratification by Volatility
+
+```{r}
+
+Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>%
+    group_by(YearMonth) %>% summarize(SD=sd(J200_Returns)*sqrt(252)) %>% # 252 trading days in a year
+    mutate(TopQtile=quantile(SD,0.8), BotQtile=quantile(SD,0.2))
+
+Hi_Vol <- Vol %>% filter(SD>TopQtile) %>% pull(YearMonth)
+Lo_Vol <- Vol %>% filter(SD<BotQtile) %>% pull(YearMonth)
+
+
+T40_Hi_Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>% group_by(YearMonth) %>%
+    filter(YearMonth %in% Hi_Vol) %>% ungroup()
+
+T40_Lo_Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>% group_by(YearMonth) %>%
+    filter(YearMonth %in% Lo_Vol) %>% ungroup()
+
+```
+
+```{r}
+data_wide_Hi_Vol <- T40_Hi_Vol %>% select(date, Tickers, J200_Returns) %>%
+    mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>%
+    mutate(J200_Returns=J200_Returns-mean(J200_Returns)) %>%
+    spread(Tickers, J200_Returns)
+
+data_wide_Hi_Vol <- data_wide_Hi_Vol[, colSums(is.na(data_wide_Hi_Vol)) < nrow(data_wide_Hi_Vol)] %>% 
+.[, colSums(is.na(.) | . == 0, na.rm = TRUE) <= 150] %>% select(-date)
+
+data_wide_Hi_Vol[is.na(data_wide_Hi_Vol)] <- 0
+
+
+df_PCA_Hi_Vol <- PCA(data_wide_Hi_Vol, graph = FALSE, scale.unit = TRUE)
+
+
+data_wide_Lo_Vol <- T40_Lo_Vol %>% select(date, Tickers, J200_Returns) %>%
+    mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>%
+    mutate(J200_Returns=J200_Returns-mean(J200_Returns)) %>%
+    spread(Tickers, J200_Returns)
+
+data_wide_Lo_Vol <- data_wide_Lo_Vol[, colSums(is.na(data_wide_Lo_Vol)) < nrow(data_wide_Lo_Vol)] %>% 
+.[, colSums(is.na(.) | . == 0, na.rm = TRUE) <= 150] %>% select(-date)
+
+data_wide_Lo_Vol[is.na(data_wide_Lo_Vol)] <- 0
+
+
+df_PCA_Lo_Vol <- PCA(data_wide_Lo_Vol, graph = FALSE, scale.unit = TRUE)
+```
+
+### High Volatility
+```{r}
+Hi_Vol
+```
+
+```{r}
+violinBy(data_wide_Hi_Vol %>% as.matrix)
+```
+
+Scree Plot
+
+```{r}
+fviz_screeplot(df_PCA_Hi_Vol, ncp = 10)
+```
+
+Importance of Components
+
+```{r}
+fviz_pca_var(df_PCA_Hi_Vol, col.var = "steelblue") + theme_minimal()
+
+```
+
+```{r}
+
+df_PCA_Hi_Vol$var$contrib %>% kable()
+
+```
+
+```{r}
+
+df_PCA_Hi_Vol$var$cos2 %>% kable()
+
+```
+
+Total Contribution to first two Principal Components
+
+```{r}
+fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 1)
+
+```
+
+```{r}
+fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 2)
+
+```
+
+```{r}
+fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 1:2)
+
+```
+
+### Low Volatility Periods
+
+```{r}
+Lo_Vol
+```
+
+```{r}
+violinBy(data_wide_Lo_Vol %>% as.matrix)
+```
+
+Scree Plot
+
+```{r}
+fviz_screeplot(df_PCA_Lo_Vol, ncp = 10)
+```
+
+Importance of Components
+
+```{r}
+fviz_pca_var(df_PCA_Lo_Vol, col.var = "steelblue") + theme_minimal()
+
+```
+
+```{r}
+
+df_PCA_Lo_Vol$var$contrib %>% kable()
+
+```
+
+```{r}
+
+df_PCA_Lo_Vol$var$cos2 %>% kable()
+
+```
+
+Total Contribution to first two Principal Components
+
+```{r}
+fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 1)
+
+```
+
+```{r}
+fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 2)
+
+```
+
+```{r}
+fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 1:2)
+
+```
+
+# References {-}
+
+<div id="refs"></div>
+
+
+# Appendix {-}
+
+## Appendix A {-}
+
+Some appendix information here
+
+## Appendix B {-}
+
+
+

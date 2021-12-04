@@ -176,7 +176,7 @@ USDZAR %>% ggplot() + geom_line(aes(date, USDZAR)) + fmxdat::theme_fmx() + fmxda
 ```{r}
 
 ZARSD <- USDZAR %>% mutate(YearMonth=format(date, "%Y%B")) %>%
-    group_by(YearMonth) %>% summarize(SD=sd(USDZAR)*sqrt(52)) %>% # 52 weeks in a year
+    group_by(YearMonth) %>% summarize(SD=sd(USDZAR)*sqrt(252)) %>% # 252 trading days in a year
     mutate(TopQtile=quantile(SD,0.8), BotQtile=quantile(SD,0.2))
 
 Hi_Vol <- ZARSD %>% filter(SD>TopQtile) %>% pull(YearMonth)
@@ -212,6 +212,9 @@ perf_lo_Indeces <- Perf_Comparisons_Indeces(T40_Indeces, YMs=Lo_Vol, Alias = "Lo
 
 ```{r}
 perf_hi_Indeces %>%  kable(caption="Index Performance: High Vol",  format="html", digits=2)
+```
+
+```{r}
 perf_lo_Indeces %>% kable(caption="Index Performance: Low Vol",  format="html", digits=2)
 ```
 

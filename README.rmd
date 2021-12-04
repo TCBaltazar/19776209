@@ -42,7 +42,7 @@ In addition, the folders used for the seperate questions (inside the "root" *Que
 
 Texevier::create_template_html(directory = 'Questions', template_name = 'Question_1')
 Texevier::create_template_html(directory='Questions', template_name = 'Question_2')
-
+Texevier::create_template_html(directory='Questions', template_name = 'Question_3')
 
 ```
 
