@@ -15,10 +15,16 @@ rm(list = ls()) # Clean your environment:
 gc() # garbage collection - It can be useful to call gc after a large object has been removed, as this may prompt R to return memory to the operating system.
 ```
 
-```{r, message=FALSE}
+Below the setup used throughout. The packages loaded for each question vary depending on the respective requirements.  
+
+```{r setup, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE, ig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
+                      message=FALSE, warning=FALSE, comment = NA)
 library(pacman)
-pacman::p_load(tidyverse, fmxdat, Texevier, )
+pacman::p_load(modelsummary, fmxdat, Texevier, gt, knitr, kableExtra, tidyverse)
+
 ```
+
 
 
 # Description
