@@ -5,11 +5,14 @@ Financial Econometrics course presented at Stellebosch University for
 the purpose of completing my Mcom (Economics). It outlines … and for
 this practical, I will attempt to do …
 
+Below, the r setup used throughout. Importantly, the packages loaded for
+each question vary depending on the respective requirements.
+
 ``` r
 knitr::opts_chunk$set(echo = FALSE, ig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
                       message=FALSE, warning=FALSE, comment = NA)
 library(pacman)
-pacman::p_load(modelsummary, fmxdat, Texevier, gt, knitr, kableExtra, tidyverse)
+pacman::p_load(fmxdat, Texevier, knitr, kableExtra, tidyverse)
 ```
 
 # Description
