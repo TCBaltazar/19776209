@@ -233,6 +233,10 @@ for (i in 1:(n - 1)) {
 p.mat <- cor.mtest(M)
 
 corrplot(M1, type="lower", order="hclust")
+
+cor1 <- cor.test(consolidated_SA$ZA_2Yr, consolidated_SA$SAGGBE10, method="pearson")
+cor2 <- cor.test(consolidated_SA$ZA_10Yr, consolidated_SA$USDZAR, method="pearson")
+
 ```
 
 ```{r}
@@ -241,80 +245,30 @@ corrplot(M1, type="lower", order="hclust",  p.mat = p.mat, sig.level = 0.01, ins
 
 ```
 
-Correlation between Break-Even inflation (SAGGBE10) and Medium term (2Yr) bond yields significant and positive. 
-Correlation between the USDZAR exchange rate and Long term (10Yr) bond yields significant and positive.
+Correlation between Break-Even inflation (SAGGBE10) and Medium term (2Yr) bond yields significant(p-value=`r cor1$p.value`) and positive (`r cor1$estimate`). 
+Correlation between the USDZAR exchange rate and Long term (10Yr) bond yields significant (p-value=`r cor2$p.value`) and positive (`r cor2$estimate`.
 
 ```{r}
 
 consolidated_SA %>% select(date, ZA_10Yr, USDZAR) %>%
-    ggplot(aes(x=ZA_10Yr, y=USDZAR)) + geom_point() + geom_smooth(method=lm) +fmxdat::theme_fmx() + fmxdat::fmx_cols()
+    ggplot(aes(x=USDZAR, y=ZA_10Yr)) + geom_point() + geom_smooth(method=lm) +fmxdat::theme_fmx() + fmxdat::fmx_cols()
+
+```
+
+```{r}
+
+consolidated_SA %>% select(date, ZA_2Yr, SAGGBE10) %>%
+    ggplot(aes(x=SAGGBE10, y=ZA_2Yr)) + geom_point() + geom_smooth(method=lm) +fmxdat::theme_fmx() + fmxdat::fmx_cols()
 
 ```
 
 
 ## Results 
 
-Tables can be included as follows. Use the _xtable_ (or kable) package for tables. Table placement = H implies Latex tries to place the table Here, and not on a new page (there are, however, very many ways to skin this cat. Luckily there are many forums online!).
-
-```{r table-1, echo=TRUE, message=FALSE, warning=FALSE, results="asis"}
-library(knitr)
-library(kableExtra)
-
-data <- mtcars[1:5,] %>% tibble::as_tibble()
-
-table <- kable(data, row.names = TRUE,
-      caption = 'Table with kable() and kablestyling()',
-      format = "html", booktabs = T) %>%
-        kable_styling(full_width = T,
-                      latex_options = c("striped",
-                                        "scale_down",
-                                        "HOLD_position"),
-                      font_size = 13)
-table
-```
-
-To reference calculations __in text__, _do this:_ From table \@ref(tab:table-1) we see the average value of mpg is `r mean(mtcars[1:5,]$mpg)`. Notice the use of table-2 in the chunk name. That's the good stuff.
-
-\newpage
-
-
-## Model summary
-
-
-Check [this](https://vincentarelbundock.github.io/modelsummary/articles/modelsummary.html) link out for more. Note this package also plays nicely with gt, kableExtra, etc.
 
 ```{r}
 
-library(modelsummary);library(gt)
-
-# modelsummary works well with gt:
-
-Tab <-
-
-datasummary_skim(swiss,
-type="numeric",
- histogram=T,
- title = "Summary: Numeric variables", output = "gt") %>%
-
-        # column labels
-    tab_spanner(label = 'Statistics', columns = c("Mean", "SD")) %>%
-    tab_spanner(label = 'Quantiles', columns = starts_with("P")) %>%
-    # footnote
-    tab_footnote(footnote = md("A very **important** Footnote."),
-                 locations = cells_body(rows = 3, columns = 1)) %>%
-
-    tab_options(data_row.padding = px(4),table.width = pct(60),
-            column_labels.font.size = pct(100),
-            column_labels.vlines.width = 1, table.font.size = pct(60))
-
-Tab
-```
-
-
-
-```{r}
-
-datasummary_correlation(mtcars)
+datasummary_correlation(consolidated_SA)
 
 ```
 

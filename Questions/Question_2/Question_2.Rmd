@@ -63,7 +63,49 @@ T40$Tickers <- gsub(" SJ Equity", "", T40$Tickers)
 
 Checking for missing values in returns yields `r sum(is.na(T40$Return))`. We can therefore proceed with the analysis.
 
-*Considering only indeces that have data from first period 2008-01-02 until last period 2021-10-29* ... initially, 92 Tickers in total
+Many missing values in the SWIX (`r sum(is.na(T40$SWIX))`) and ALSI (`r sum(is.na(T40$ALSI))`) columns, however. Need to impute missing returns; use mean value of the respective index. 
+
+```{r}
+
+SWIX <- T40 %>% select(date, SWIX) %>%
+    group_by(date) %>%
+    mutate(Avg=mean(SWIX, na.rm=T)) %>%
+    mutate(Avg=coalesce(Avg, 0)) %>%
+    ungroup() %>%
+    mutate(SWIX=coalesce(SWIX, Avg)) %>%
+    select(-Avg)
+    
+ALSI <- T40 %>% select(date, ALSI) %>%
+    group_by(date) %>%
+    mutate(AVg=mean(ALSI, na.rm=T)) %>%
+    mutate(AVg=coalesce(AVg, 0)) %>%
+    ungroup() %>%
+    mutate(ALSI=coalesce(ALSI, AVg)) %>%
+    select(-AVg)
+
+T40 <- T40 %>% group_by(date) %>% 
+    mutate(Avg1=mean(SWIX, na.rm=T)) %>%
+    mutate(Avg1=coalesce(Avg1, 0)) %>%
+    ungroup() %>%
+    mutate(SWIX=coalesce(SWIX, Avg1)) %>%
+    mutate(Avg2=mean(ALSI, na.rm=T)) %>%
+    mutate(Avg2=coalesce(Avg2, 0)) %>%
+    ungroup() %>%
+    mutate(ALSI=coalesce(ALSI, Avg2)) %>%
+    select(-Avg1, -Avg2)
+
+
+```
+
+There are now `r sum(is.na(T40$SWIX))` missing values for the SWIX, and `r sum(is.na(T40$ALSI))` missing values for the ALSI.
+
+```{r}
+
+
+```
+
+
+*Considering only stocks that have data from first period 2008-01-02 until last period 2021-10-29* ... initially, 92 Tickers in total
 
 ```{r}
 
@@ -71,25 +113,36 @@ T40 <- T40 %>% arrange(date) %>%
     filter(!is.na(Return)) %>%
     mutate(YearMonth=format(date, "%Y%B"))
 
-# Considering only indeces with data from before 2008-01-01, and using this as common start date
+# Considering only indeces with data before 2008-01-01, and using this as common start date
 
-T40_cons <- T40 %>% group_by(Tickers) %>%
+T40_low <- T40 %>% group_by(Tickers) %>%
     filter(date<ymd(20080103)) %>%
-    ungroup() %>%
-    pull(Tickers) %>% unique() # only 41 Tickers have data from the first date (2008-01-02)
+   ungroup() %>%
+    pull(Tickers) %>% unique() 
+T40_high <- T40 %>% group_by(Tickers) %>% 
+    filter(date>ymd(20211028)) %>% 
+    ungroup() %>% pull(Tickers) %>% unique()
 
-T40 <- T40 %>% filter(Tickers %in% T40_cons) %>%
-    filter(date>ymd(20080101)) %>% pull(Tickers) %>% unique()
-
-# Only 
+T40 <- T40 %>% filter(Tickers %in% T40_low & Tickers %in% T40_high) %>%
+    filter(date>ymd(20080101)) #%>% pull(Tickers) %>% unique() only 20 Tickers have data for full sample period (20080102:20211029)
 
 ```
 
 *Issues*
-SAB classified as Large Cap, from 2016 has NA in index_name
 
+AMS (2016).. stayed large_cap, GFI (2016/17).. became mid_cap, ANG (2018), EXX (2019).. became mid_cap, INP (2020).. became mid_cap, INL (2020).. became mid_cap, 
 
+Stocks that have NA Index_Name were large caps. After some period (where NA's present), they become mid-cap. classify NA's as Mid_Cap.
 
+```{r}
+
+T40 <- T40 %>% mutate(Size=coalesce(Index_Name, "Mid_Caps")) %>%
+    select(-Index_Name)
+# Previously, 340 missing Index_Names
+sum(is.na(T40$Size)) # No missing Index_Names
+```
+
+Previously, there were 340 missing Index_Names. After classifying the missing stocks as mid_caps, there are none.
 
 
 
@@ -101,23 +154,66 @@ T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alp
 
 ```{r}
 
-T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Index_Name)
+T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Size)
 
-# Some companies have sector info missing
 ```
-
+Most of the stocks that have data for the full sample period are large caps. Many of which had period where their market capitalizations fell below a certain threshold, and thus became classified as mid cap stocks.
 
 
 ## Stratification using USDZAR
 
 ```{r}
-USDZAR %>% filter(date==last(date)) # need to restrict T40 data for Tickers that have data until this date.
+USDZAR <- USDZAR %>% filter(date>ymd(20080101)) %>% # need to restrict T40 data for Tickers that have data until this date.
+    spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy)
+```
+
+```{r}
+USDZAR %>% ggplot() + geom_line(aes(date, USDZAR)) + fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="USDZAR Spot", subtitle="USDZAR Spot (2008-2021)")
 ```
 
 
+```{r}
+
+ZARSD <- USDZAR %>% mutate(YearMonth=format(date, "%Y%B")) %>%
+    group_by(YearMonth) %>% summarize(SD=sd(USDZAR)*sqrt(52)) %>% # 52 weeks in a year
+    mutate(TopQtile=quantile(SD,0.8), BotQtile=quantile(SD,0.2))
+
+Hi_Vol <- ZARSD %>% filter(SD>TopQtile) %>% pull(YearMonth)
+Lo_Vol <- ZARSD %>% filter(SD<BotQtile) %>% pull(YearMonth)
+
+```
+
+
+```{r}
+T40_Indeces <- T40 %>% select(date, SWIX, ALSI) %>%
+        gather(Index, Return, -date) %>% mutate(YearMonth=format(date, "%Y%B"))
+
+Perf_Comparisons_Indeces <- function(T40_Indeces, YMs, Alias) {
+
+    Unconditional_SD <- T40_Indeces %>% group_by(Index) %>%
+        mutate(Full_SD=sd(Return)*sqrt(252)) %>% # 252 trading days p/year
+        filter(YearMonth %in% YMs) %>%
+        summarise(SD=sd(Return)*sqrt(252), across(.cols=starts_with("Full"), .fns=max)) %>%
+        arrange(desc(SD)) %>% mutate(Period=Alias) %>%
+        #group_by(Index) %>%
+        mutate(Ratio=SD/Full_SD)
+    Unconditional_SD
+}
+
+perf_hi_Indeces <- Perf_Comparisons_Indeces(T40_Indeces, YMs=Hi_Vol, Alias="High_Vol")
+perf_lo_Indeces <- Perf_Comparisons_Indeces(T40_Indeces, YMs=Lo_Vol, Alias = "Low_Vol")
 
 
 
+```
+
+# Results
+
+```{r}
+perf_hi_Indeces %>%  kable(caption="Index Performance: High Vol",  format="html", digits=2)
+perf_lo_Indeces %>% kable(caption="Index Performance: Low Vol",  format="html", digits=2)
+```
 
 
 
