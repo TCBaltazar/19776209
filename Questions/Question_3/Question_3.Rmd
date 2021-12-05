@@ -15,20 +15,11 @@ output:
     toc: true
     # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
     self_contained: TRUE
-abstract: |
-    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
-    Abstracts have no spaces, but can have bullets.
-
-    Bullets can be created as follows
-
-    + You can add bullets, but do not add colons please.
-
-    + Line breaks are also not permitted.
-
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+knitr::opts_chunk$set(echo = FALSE, fig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
+                      message=FALSE, warning=FALSE, comment = NA, error=FALSE)
 pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse,
                lubridate, psych, broom,
                FactoMineR, factoextra, devtools, rmsfuns,
@@ -39,10 +30,9 @@ pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse,
 
 # Introduction {-}
 
-
+This discussion aims to compare the concentration of returns among the ALSI (J200) constituents by using Principal Component Analysis (PCA) to study the concentration, and commonality fo returns within this index. In addition, monthly returns volatility will be calculated and this data will be used for stratification in order to compare return source concentrations for periods of high and low market volatility.
 
 # Data  {-}
-
 
 ```{r, include=FALSE}
 T40 <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/T40.rds")
@@ -66,26 +56,37 @@ T40 <- T40 %>% group_by(Tickers) %>% arrange(date) %>%
 # using average J200 Returns, to replace NA's
 ```
 
-## Exploratory Analysis
+For this question, data on the ALSI and SWIX top 40 Indexes is used to conduct analysis. This is contained in the T40 dataframe, with the variable of interest (J200 index) first being cleared of NA's by replacing them with the mean value of the index. Returns are then calculated for the J200 index. 
 
-```{r}
-
-T40 %>% ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) +
-labs(x="Year") + theme_bw() + facet_wrap(~Sector)
-
-```
-
-```{r}
+# Exploratory Analysis
+```{r, fig.cap="J200 Returns}
 
 T40 %>% ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) +
     labs(x="Year") + theme_bw()
 
 ```
 
+```{r, fig.cap="J200 Returns by Sector"}
 
-## Outliers (?)
+T40 %>% ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) +
+labs(x="Year") + theme_bw() + facet_wrap(~Sector)
 
-```{r}
+```
+
+The data appears to be centered around the mean, however there do appear to be some significant values that could potentially bias our results (outliers).
+
+Removing outliers and plotting.
+
+```{r, fig.cap="J200 Returns, sans Outliers"}
+
+T40 %>% mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>% 
+    ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) + 
+    labs(x="Year") + theme_bw() 
+
+```
+
+```{r, fig.cap="J200 Returns by Sector, sans Outliers"}
 
 T40 %>% mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
                         ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>% 
@@ -95,21 +96,11 @@ T40 %>% mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
 ```
 
 
-```{r}
-
-T40 %>% mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
-                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>% 
-    ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) + 
-    labs(x="Year") + theme_bw() 
-
-```
-
-
 # Principal Component Analysis
 
-To do PCA, first eliminate outliers and remove columns with only NA's, then need to demean and scale the data.
+To perform a PCA, first need to elminate outliers and remove columns with only NA's. Although the returns data appears to already be centered, it must still be demeaned and scaled.
 
-```{r}
+```{r, include=FALSE}
 
 data_wide <- T40 %>% select(date, Tickers, J200_Returns) %>%
     mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
@@ -124,60 +115,66 @@ data_wide[is.na(data_wide)] <- 0
 
 
 df_PCA <- PCA(data_wide, graph = FALSE, scale.unit = TRUE)
-str(df_PCA)
 ```
 
 
-
-```{r}
+A violin plot of the data is plotted below. It is similar to a boxplot, but shows the actual distribution of the date; wider sections represent a higher probability that data will take on a certain value, skinnier sections represent a lower probability. 
+```{r, fig.cap="Violin Plot of the Returns Data"}
 violinBy(data_wide %>% as.matrix)
 ```
 
-## Scree Plot
+From the above, the returns data appear to be similarly distributed. 
 
-```{r}
+A Scree plot can be used to determine the amount of variation explained by each Principal Component (PC). 
+
+```{r, fig.cap="Scree Plot"}
 fviz_screeplot(df_PCA, ncp = 10)
 ```
 
-## Importance of Components
+This indicates that the majority of the variation in the data is explained by the first PC, with the relative variation explained by subsequent components beginning to taper (ie curve flatten) after the fourth component.
 
-```{r}
+The plot below shows the relationship between all variables and the two principal components; positively correlated variables are grouped together, and negatively correlated variables are positioned in opposite quadrants. 
+
+```{r, fig.cap="Variables-PCA"}
 fviz_pca_var(df_PCA, col.var = "steelblue") + theme_minimal()
+```
+
+From this PCA analysis, one can extract the contribution of each variable as well as its quality of representation (given in the tables below).
+
+```{r}
+
+df_PCA$var$contrib %>% kable(caption="Contribution of Variables",  format="html", digits=2)
 
 ```
 
 ```{r}
 
-df_PCA$var$contrib %>% kable()
+df_PCA$var$cos2 %>% kable(caption="Cos2: Quality of Representation",  format="html", digits=2)
 
 ```
 
-```{r}
+And, finally, plotting each variables contribution to the PC's. 
 
-df_PCA$var$cos2 %>% kable()
-
-```
-
-Total Contribution to first two Principal Components
-
-```{r}
+```{r, fig.cap="Contribution of Variables to PC1"}
 fviz_contrib(df_PCA, choice = "var", axes = 1)
 
 ```
 
-```{r}
+```{r, fig.cap="Contribution of Variables to PC2"}
 fviz_contrib(df_PCA, choice = "var", axes = 2)
 
 ```
 
-```{r}
+```{r, fig.cap="Contribution of Variables to PC's 1 & 2"}
 fviz_contrib(df_PCA, choice = "var", axes = 1:2)
 
 ```
 
 ## Stratification by Volatility
 
-```{r}
+In order to do stratification by period of volatility in returns, one must first identify the periods of low vs high volatility, and then perform the PCA analysis for both periods.
+
+```{r, include=FALSE}
 
 Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>%
     group_by(YearMonth) %>% summarize(SD=sd(J200_Returns)*sqrt(252)) %>% # 252 trading days in a year
@@ -195,7 +192,14 @@ T40_Lo_Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>% group_by(YearMo
 
 ```
 
+The periods of high and low volatility extracted can be seen below. 
+
 ```{r}
+Vol_df_PCA <-list(Hi_Vol_PCA, Lo_Vol_PCA) 
+data.frame(Vol_df_PCA) %>% kable(col.names=c("High_Volatility", "Low Volatility"), caption="Currency Volatility Months", format="html")
+```
+
+```{r, include=FALSE}
 data_wide_Hi_Vol <- T40_Hi_Vol %>% select(date, Tickers, J200_Returns) %>%
     mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
                         ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>%
@@ -226,121 +230,103 @@ data_wide_Lo_Vol[is.na(data_wide_Lo_Vol)] <- 0
 df_PCA_Lo_Vol <- PCA(data_wide_Lo_Vol, graph = FALSE, scale.unit = TRUE)
 ```
 
-### High Volatility
-```{r}
-Hi_Vol
-```
+The PCA analysis conducted below follows on from the one done in the previous section, differentiating between periods of high and low volatility in returns.
 
-```{r}
+*Violin Plots*
+```{r, fig.cap="Violin Plot (High Volatility)"}
 violinBy(data_wide_Hi_Vol %>% as.matrix)
 ```
 
-Scree Plot
+```{r, fig.cap="Violin Plot (Low Volatility)"}
+violinBy(data_wide_Lo_Vol %>% as.matrix)
+```
 
-```{r}
+The distributions appear similar, however more variables appear to be significant for the low volatility period.
+
+*Scree Plots*
+
+```{r, fig.cap="Scree Plot (High Volatility)"}
 fviz_screeplot(df_PCA_Hi_Vol, ncp = 10)
 ```
 
-Importance of Components
+```{r, fig.cap="Scree Plot(Low Volatility)"}
+fviz_screeplot(df_PCA_Lo_Vol, ncp = 10)
+```
 
-```{r}
+From the above Scree Plots, one can see that during the high volatility period, PC1 explains a greater proportion of the variation in returns. Whereas during periods of low volatility, the significance of PC1 is diminished, whilst PC2 and PC3 explain a greater proportion of the variation.
+
+*Importance of Components*
+
+```{r, fig.cap="Variables-PCA (High Volatility)"}
 fviz_pca_var(df_PCA_Hi_Vol, col.var = "steelblue") + theme_minimal()
+```
+
+```{r, fig.cap="Variables-PCA (Low Volatility)"}
+fviz_pca_var(df_PCA_Lo_Vol, col.var = "steelblue") + theme_minimal()
+```
+
+From the above figures, the quality of variables during high volatility periods appears to be greater (further from the origin). Their directions tend to be similar in both scenarios, however it is difficult to tell with any certainty due to the overlap caused by the greater number of relevant variables during low volatility periods.
+
+*Variable Contributions*
+
+```{r}
+df_PCA_Hi_Vol$var$contrib %>% kable(caption="Contribution of Variables (High Vol)",  format="html", digits=2)
 
 ```
 
 ```{r}
+df_PCA_Lo_Vol$var$contrib %>% kable(caption="Contribution of Variables (Low Vol)",  format="html", digits=2)
+```
 
-df_PCA_Hi_Vol$var$contrib %>% kable()
+*Variable Quality*
+
+```{r}
+
+df_PCA_Hi_Vol$var$cos2 %>% kable(caption="Cos2: Quality of Representation (High Vol)",  format="html", digits=2)
 
 ```
 
 ```{r}
-
-df_PCA_Hi_Vol$var$cos2 %>% kable()
+df_PCA_Lo_Vol$var$cos2 %>% kable(caption="Cos2: Quality of Representation (Low Vol)",  format="html", digits=2)
 
 ```
 
-Total Contribution to first two Principal Components
 
-```{r}
+*Total Contributions to PC1*
+
+```{r, fig.cap="Contribution of Variables to PC1 (High Volatility)"}
 fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 1)
 
 ```
 
-```{r}
-fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 2)
-
-```
-
-```{r}
-fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 1:2)
-
-```
-
-### Low Volatility Periods
-
-```{r}
-Lo_Vol
-```
-
-```{r}
-violinBy(data_wide_Lo_Vol %>% as.matrix)
-```
-
-Scree Plot
-
-```{r}
-fviz_screeplot(df_PCA_Lo_Vol, ncp = 10)
-```
-
-Importance of Components
-
-```{r}
-fviz_pca_var(df_PCA_Lo_Vol, col.var = "steelblue") + theme_minimal()
-
-```
-
-```{r}
-
-df_PCA_Lo_Vol$var$contrib %>% kable()
-
-```
-
-```{r}
-
-df_PCA_Lo_Vol$var$cos2 %>% kable()
-
-```
-
-Total Contribution to first two Principal Components
-
-```{r}
+```{r, fig.cap="Contribution of Variables to PC1 (Low Volatility)"}
 fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 1)
 
 ```
 
-```{r}
+*Total Contributions to PC2*
+
+```{r, fig.cap="Contribution of Variables to PC2 (High Volatility)"}
+fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 2)
+
+```
+
+```{r, fig.cap="Contribution of Variables to PC2 (Low Volatility)"}
 fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 2)
 
 ```
 
-```{r}
-fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 1:2)
+*Total Contributions to PC1 & PC2*
+
+```{r, fig.cap="Contribution of Variables to PC1 & PC2 (High Volatility)"}
+fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 1:2)
 
 ```
 
-# References {-}
+```{r, fig.cap="Contribution of Variables to PC1 & PC2 (Low Volatility)}
+fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 1:2)
 
-<div id="refs"></div>
-
-
-# Appendix {-}
-
-## Appendix A {-}
-
-Some appendix information here
-
-## Appendix B {-}
+```
 
 
 

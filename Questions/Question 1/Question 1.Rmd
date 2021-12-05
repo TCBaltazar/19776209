@@ -15,39 +15,24 @@ output:
     toc: true
     # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
     self_contained: TRUE
-abstract: |
-    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
-    Abstracts have no spaces, but can have bullets.
-
-    Bullets can be created as follows
-
-    + You can add bullets, but do not add colons please.
-
-    + Line breaks are also not permitted.
-
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, ig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
-                      message=FALSE, warning=FALSE, comment = NA)
+knitr::opts_chunk$set(echo = FALSE, fig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
+                      message=FALSE, warning=FALSE, comment = NA, error=FALSE)
 library(pacman)
 pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate, pastecs, ggpubr, Hmisc, corrplot)
 ```
 
 \newpage
 
-# Introduction {-}
+## Introduction 
 
-References are to be made as follows: [@fama1997] and @grinold2000 Such authors could also be referenced in brackets [@grinold2000] and together [@fama1997 \& @grinold2000]. Source the reference code from scholar.google.com by clicking on ``cite'' below article name. Then select BibTeX at the bottom of the Cite window, and proceed to copy and paste this code into your ref.bib file, located in the directory's Tex folder. Open this file in Rstudio for ease of management, else open it in your preferred Tex environment. Add and manage your article details here for simplicity - once saved, it will self-adjust in your paper.
+Bond yields are an important economic indicator, and can be seen as a sign of investor sentiment about the economy. Interest rates and bond yields have a positive relationship, and, to a large extent, lower yields on Advanced Economy bonds can lead investors to search for yield elsewhere. This means that when there is a "risk-on" sentiment in global markets, and investors shift more capital into Emerging Markets, this greater demand for bonds should drive up their prices and, by extension, decrease the yield to investors. This sections of the README aims to investigate trends in yield spreads using the data provided.
 
-> I suggest renaming the top line after \@article, as done in the template ref.bib file, to something more intuitive for you to remember. Do not change the rest of the code. Also, be mindful of the fact that bib references from google scholar may at times be incorrect. Reference Latex forums for correct bibtex notation.
-
-Writing in Rmarkdown is surprizingly easy - see [this website](https://www.rstudio.com/wp-content/uploads/2015/03/rmarkdown-reference.pdf) cheatsheet for a summary on writing Rmd writing tips.
-
-# Data  {-}
+## Data
 
 ```{r, include=FALSE}
-
 SA_bonds <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/SA_Bonds.rds") %>%
     rename("ZA_3M"=SA_3M)
 BE_Infl <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/BE_Infl.rds")
@@ -59,14 +44,122 @@ VIX <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial 
 ZAR_IY <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/ZAR_IY.rds")
 ```
 
-## Descriptive Statistics
-*BE inflation data only available from 2012-05-07* therefore use this as starting date for analyzing yield spreads in local (ZA) bond market (comparably)
+The data sourced includes information on bond yields for SA (SA_bonds), as well as a wide basket of Advanced and Emerging economies (bonds_2y and bonds_10y). Data on the USD:ZAR spot rate is provided in "usdzar", VIX is a composite volatility index including indicators for the US, EU, and EME's. ZA_Infl contains historical inflation rates for SA, and BE_Infl is Break-Even Inflation, which gives an insight into the market's pricing of future inflation. Finally, ZAR_IY is the 6-month forward implied yield for SA.
+
+## Exploratory Analysis
+
+Firstly, due to constraints on the time periods available for many of the countries, and the reduced time frame available for the Break-Even inflation variable, the sample was restricted to consider only dates from 2012-05-06 (ie the first observation for BE_Infl). 
+
+Calculating bond spreads was done using the formula:
+$Spread=Yield_{10Yr}-Yield_{2Yr}$
+
+```{r, , include=FALSE}
+BRIC <- c("Brazil", "CHINA", "India", "Russia")
+bonds_10y$Name <- gsub("_10Yr", "", bonds_10y$Name)
+bonds_2y$Name <- gsub("_2yr", "", bonds_2y$Name) # remove unnecessary labels
+
+BRICS_10Yr <- left_join(SA_bonds %>% arrange(date) %>% select(date, ZA_10Yr) %>% filter(date>ymd(20120506)), 
+                        bonds_10y %>% filter(Name %in% BRIC) %>% spread(Name, Bond_10Yr) %>% 
+    setNames(c("date", "BRA_10Yr", "CHN_10Yr", "IND_10Yr", "RUS_10Yr")) %>% filter(date>ymd(20120506)), by="date") %>%
+    gather(Tickers, Val, -date)
+
+SA_2Yr <- SA_bonds %>% arrange(date) %>% select(date, ZA_2Yr) %>% filter(date>ymd(20120506)) 
+
+BRIC_2Yr <- bonds_2y %>% filter(Name %in% BRIC) %>% spread(Name, Bond_2Yr) %>% 
+    setNames(c("date", "BRA_2Yr", "CHN_2Yr", "IND_2Yr", "RUS_2Yr")) %>% filter(date>ymd(20120506))
+
+BRICS_2Yr <- left_join(SA_2Yr, BRIC_2Yr, by="date") %>% gather(Tickers, Val, -date)
+
+
+```
+
+```{r, fig.cap="BRICS 2Yr Bond Yields (2012-2021)"}
+
+BRICS_2Yr %>% ggplot() +
+    geom_line(aes(date, Val, color=Tickers))  +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Bond Yields",
+         subtitle="BRICS 2Yr Bond Yields (2012-2021)")
+
+
+    
+```
+
+```{r, fig.cap="BRICS 10Yr Bond Yields (2012-2021)"}
+BRICS_10Yr %>% ggplot() + geom_line(aes(date, Val, color=Tickers)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Bond Yields",
+         subtitle="BRICS 10Yr Bond Yields (2012-2021)")
+
+```
+
+
+```{r, fig.cap="BE Inflation (2012-2021)"}
+
+BE_Infl %>% spread(Name, Price) %>%
+    ggplot() + geom_line(aes(date, SAGGBE10)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Break-Even Inflation", subtitle="BE Inflation (2012-2021)")
+
+```
+
+```{r, fig.cap="ZA Inflation (2012-2021)"}
+
+ZA_Infl %>% spread(Name, Price) %>% filter(date>ymd(20120506)) %>%
+    ggplot() + geom_line(aes(date, ZAR_Infl)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="ZA Inflation", subtitle="ZA Inflation (2012-2021)")
+
+```
+
+
+```{r, fig.cap="USDZAR Spot (2012-2021)"}
+
+usdzar %>% spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy) %>% filter(date>ymd(20120506)) %>%
+    ggplot() + geom_line(aes(date, USDZAR)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="USDZAR Spot", subtitle="USDZAR Spot (2012-2021)")
+```
+
+
+
+```{r, fig.cap = "Emerging Market Volatility (2012-2021)"}
+
+VIX %>% filter(Name=="VXEEM", date>ymd(20120506)) %>% spread(Name, Price) %>%
+    ggplot() + geom_line(aes(date, VXEEM)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="VXEEM", subtitle="Emerging Market Volatility (2012-2021)")
+
+```
+
+```{r, include=FALSE}
+
+consolidated_SA <- left_join(SA_2Yr, 
+                          VIX %>% filter(Name=="VXEEM", date>ymd(20120506)) %>% spread(Name, Price),
+                          by="date") %>%
+    left_join(., SA_bonds %>% arrange(date) %>% select(date, ZA_10Yr) %>% filter(date>ymd(20120506)),
+              by="date") %>% 
+    left_join(., BE_Infl %>% spread(Name, Price), by="date") %>%
+    left_join(., usdzar %>% spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy) %>% filter(date>ymd(20120506)), by="date") %>% 
+    left_join(., ZA_Infl %>% spread(Name, Price) %>% filter(date>ymd(20120506)), by="date") %>%
+    mutate(Spread=ZA_10Yr-ZA_2Yr)
+```
+
+```{r, fig.cap = "ZA Yield Spread (2012-2021)"}
+consolidated_SA %>% ggplot() + geom_line(aes(date, Spread)) + fmxdat::theme_fmx() +fmxdat::fmx_cols()+
+    labs(x="Year", y="Spread", subtitle="ZA Yield Spread (2012-2021)")
+
+```
+
+As can be seen from the figure above, yield spreads have increased significantly in SA since the COVID-19 pandemic, which coincides with a sharp increase in the EME volatility index. The next section provides descriptive statistics for the variables included in the consolidated SA dataset, after which a correlation analysis will be performed to determine the influence of the other variables on bond yield spreads in SA.
+
+### Descriptive Statistics
+
+Tables 1-8 below provide descriptive statistics for the relevant variables. 
 
 ```{r}
-pastecs::stat.desc(SA_bonds[, -1])%>% kable(caption="Summary Statistics: SA Bonds",  format="html", digits=2)
+pastecs::stat.desc(SA_bonds[, -1])%>% kable(caption="Summary Statistics: SA Bonds (Full Sample)",  format="html", digits=2)
+
+```
+
+```{r}
 # Since 2011
 pastecs::stat.desc(SA_bonds %>% filter(date>ymd(20120506)) %>%
-            .[, -1]) %>%  kable(caption="Summary Statistics: SA Bonds (2)",  format="html", digits=2)
+            .[, -1]) %>%  kable(caption="Summary Statistics: SA Bonds (Reduced Sample)",  format="html", digits=2)
 ```
 
 ```{r}
@@ -74,32 +167,28 @@ pastecs::stat.desc(BE_Infl %>% spread(Name, Price) %>% arrange(date) %>% .[, -1]
 ```
 
 ```{r}
-bonds_2y$Name <- gsub("_2yr", "", bonds_2y$Name) # remove unnecessary label
-BRICS <- c("Brazil", "CHINA", "India", "Russia")
-pastecs::stat.desc(bonds_2y %>% filter(Name %in% BRICS) %>% 
+
+pastecs::stat.desc(bonds_2y %>% filter(Name %in% BRIC) %>% 
             arrange(date) %>% spread(Name, Bond_2Yr) %>% 
             filter(date>ymd(20120506)) %>%
             .[,-1]) %>% kable(caption="Summary Statistics: BRIC 2yr Bonds", format="html", digits=2)
 
 ```
 
-
 ```{r}
 
-bonds_10y$Name <- gsub("_10Yr", "", bonds_10y$Name)
 
-pastecs::stat.desc(bonds_10y %>% filter(Name %in% BRICS) %>%
-                       arrange(date) %>% spread(Name, Bond_10Yr) %>%
-                       filter(date>ymd(20120506)) %>%
+
+pastecs::stat.desc(bonds_10y %>% filter(Name %in% BRIC) %>%
+                       arrange(date) %>% spread(Name, Bond_10Yr)  %>%
                        .[,-1])  %>% kable(caption="Summary Statistics: BRIC 10yr Bonds", format="html", digits=2)
                        
 ```
 
-
 ```{r}
 
 pastecs::stat.desc(usdzar %>% spread(Name, Price) %>%
-                       arrange(date) %>% filter(date>ymd(20120506)) %>%
+                       arrange(date)  %>%
                        .[,-1]) %>% kable(caption="Summary Statistics: USDZAR Spot", format="html", digits=2)
 ```
 
@@ -109,9 +198,6 @@ pastecs::stat.desc(ZA_Infl %>% spread(Name, Price) %>%
                        .[,-1]) %>% kable(caption="Summary Statistics: ZA Inflation", format="html", digits=2)
 ```
 
-
-
-
 ```{r}
 
 pastecs::stat.desc(VIX %>% filter(Name=="VXEEM") %>% spread(Name, Price) %>% arrange(date) %>%
@@ -120,98 +206,15 @@ pastecs::stat.desc(VIX %>% filter(Name=="VXEEM") %>% spread(Name, Price) %>% arr
 
 ```
 
-
-## Figures
-
-```{r}
-
-SA_bonds %>% gather(Type, Val, -date) %>% group_by(Type) %>% arrange(date) %>%
-    ggplot() + geom_line(aes(date, Val, color=Type)) + theme_bw() +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
-    labs(x="Year", y="Bond Yields",
-         subtitle="ZA Historical Bond Yields (1999-2021)")
-
-```
-
-### BRICS Bond Yields
-
-```{r}
-
-SA_2Yr <- SA_bonds %>% arrange(date) %>% select(date, ZA_2Yr) %>% filter(date>ymd(20120506)) 
-
-BRIC_2Yr <- bonds_2y %>% filter(Name %in% BRICS) %>% spread(Name, Bond_2Yr) %>% 
-    setNames(c("date", "BRA_2Yr", "CHN_2Yr", "IND_2Yr", "RUS_2Yr")) %>% filter(date>ymd(20120506))
-
-BRICS_2Yr <- left_join(SA_2Yr, BRIC_2Yr, by="date") %>% gather(Ticker, Val, -date) 
-
-BRICS_2Yr %>% ggplot() +
-    geom_line(aes(date, Val, color=Ticker))  +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
-    labs(x="Year", y="Bond Yields",
-         subtitle="BRICS 2Yr Bond Yields (2012-2021)")
-
-```
-
-```{r}
-
-BRICS_10Yr <- left_join(SA_bonds %>% arrange(date) %>% select(date, ZA_10Yr) %>% filter(date>ymd(20120506)), 
-                        bonds_10y %>% filter(Name %in% BRICS) %>% spread(Name, Bond_10Yr) %>% 
-    setNames(c("date", "BRA_10Yr", "CHN_10Yr", "IND_10Yr", "RUS_10Yr")) %>% filter(date>ymd(20120506)), by="date") %>%
-    gather(Tickers, Val, -date) 
-
-BRICS_10Yr %>% ggplot() + geom_line(aes(date, Val, color=Tickers)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
-    labs(x="Year", y="Bond Yields",
-         subtitle="BRICS 10Yr Bond Yields (2012-2021)")
-    
-
-```
-
-
-```{r}
-
-BE_Infl %>% spread(Name, Price) %>%
-    ggplot() + geom_line(aes(date, SAGGBE10)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
-    labs(x="Year", y="Break-Even Inflation", subtitle="BE Inflation (2012-2021)")
-
-```
-
-```{r}
-
-ZA_Infl %>% spread(Name, Price) %>% filter(date>ymd(20120506)) %>%
-    ggplot() + geom_line(aes(date, ZAR_Infl)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
-    labs(x="Year", y="ZA Inflation", subtitle="ZA Inflation (2012-2021)")
-
-```
-
-```{r}
-
-usdzar %>% spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy) %>% filter(date>ymd(20120506)) %>%
-    ggplot() + geom_line(aes(date, USDZAR)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
-    labs(x="Year", y="USDZAR Spot", subtitle="USDZAR Spot (2012-2021)")
-```
-
-
-
-```{r}
-
-VIX %>% filter(Name=="VXEEM", date>ymd(20120506)) %>% spread(Name, Price) %>%
-    ggplot() + geom_line(aes(date, VXEEM)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
-    labs(x="Year", y="VXEEM", subtitle="Emerging Market Volatility (2012-2021)")
-
-```
-
-From the above figure, can see that EM volatility increased significantly in 2015 (Taper Tantrum) and 2020 (COVID-pandemic).
+For the VIX data, only EME volatility was considered, and for the bond yields (2 and 10 year), the sample was restricted to only consider the BRIC economies. For the remainder of this discussion, focus will be on the domestic (South African) economy.
 
 ## Correlation Analysis
 
 ```{r, include=FALSE}
-consolidated_SA <- left_join(SA_2Yr, 
-                          VIX %>% filter(Name=="VXEEM", date>ymd(20120506)) %>% spread(Name, Price),
-                          by="date") %>%
-    left_join(., SA_bonds %>% arrange(date) %>% select(date, ZA_10Yr) %>% filter(date>ymd(20120506)),
-              by="date") %>% 
-    left_join(., BE_Infl %>% spread(Name, Price), by="date") %>%
-    left_join(., usdzar %>% spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy) %>% filter(date>ymd(20120506)), by="date")
 
+consolidated_SA <- consolidated_SA %>% select(-ZA_2Yr, -ZA_10Yr, -ZAR_Infl) # to avoid unnecessary correlations (inflation captured by BE_infl, Spread captures bond yields at diff. maturities)
 
+# Saving objects for corrplot
 M <- consolidated_SA %>% select(-date)
 M1 <- cor(M)
 
@@ -232,59 +235,23 @@ for (i in 1:(n - 1)) {
  }
 p.mat <- cor.mtest(M)
 
-corrplot(M1, type="lower", order="hclust")
-
-cor1 <- cor.test(consolidated_SA$ZA_2Yr, consolidated_SA$SAGGBE10, method="pearson")
-cor2 <- cor.test(consolidated_SA$ZA_10Yr, consolidated_SA$USDZAR, method="pearson")
-
 ```
 
-```{r}
+```{r, fig.cap="Correlation Plot"}
 
 corrplot(M1, type="lower", order="hclust",  p.mat = p.mat, sig.level = 0.01, insig = "blank")
 
 ```
 
-Correlation between Break-Even inflation (SAGGBE10) and Medium term (2Yr) bond yields significant(p-value=`r cor1$p.value`) and positive (`r cor1$estimate`). 
-Correlation between the USDZAR exchange rate and Long term (10Yr) bond yields significant (p-value=`r cor2$p.value`) and positive (`r cor2$estimate`.
 
-```{r}
-
-consolidated_SA %>% select(date, ZA_10Yr, USDZAR) %>%
-    ggplot(aes(x=USDZAR, y=ZA_10Yr)) + geom_point() + geom_smooth(method=lm) +fmxdat::theme_fmx() + fmxdat::fmx_cols()
-
+```{r, include=FALSE}
+cor1 <- cor.test(consolidated_SA$Spread, consolidated_SA$SAGGBE10, method="pearson")
+cor2 <- cor.test(consolidated_SA$Spread, consolidated_SA$USDZAR, method="pearson")
+cor3 <- cor.test(consolidated_SA$Spread, consolidated_SA$VXEEM, method="pearson")
 ```
 
-```{r}
+The yield spread on SA bonds is therefore positively related to the EM volatility index (`r cor3$estimate`, p-value=`r cor3$p.value`), the USDZAR spot rate (`r cor2$estimate`, p-value=`r cor2$p.value`), and negatively related to the Break-Even inflation measure (`r cor1$estimate`, p-value=`r cor1$p.value`). The stronger US dollar vis-a-vis the Rand, and the greater perceived 'risk' in EM's (measured by the VXEEM index) since the onset of the COVID-19 pandemic, can therefore be seen as two potential causes of the significantly higher yield spreads seen in SA since 2020.
 
-consolidated_SA %>% select(date, ZA_2Yr, SAGGBE10) %>%
-    ggplot(aes(x=SAGGBE10, y=ZA_2Yr)) + geom_point() + geom_smooth(method=lm) +fmxdat::theme_fmx() + fmxdat::fmx_cols()
-
-```
-
-
-## Results 
-
-
-```{r}
-
-datasummary_correlation(consolidated_SA)
-
-```
-
-
-# References {-}
-
-<div id="refs"></div>
-
-
-# Appendix {-}
-
-## Appendix A {-}
-
-Some appendix information here
-
-## Appendix B {-}
 
 
 

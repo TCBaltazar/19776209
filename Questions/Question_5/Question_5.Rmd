@@ -1,0 +1,60 @@
+---
+title: "Question 5: MSCI Funds"
+author: "TC Baltazar"
+date: "December 2021"
+# date: "`r Sys.Date()`"
+bibliography: Tex/ref.bib       # Do not edit: Keep this naming convention and location.
+output:
+  pagedown::html_paged:
+    # template: wp_paged.html
+    # css: ['wp.css', 'wp-fonts.css', 'wp-page.css']
+    css: ["Template/default-fonts-Texevier.css", "Template/default-page-Texevier.css", "Template/default-Texevier.css"]
+    csl: Template/harvard-stellenbosch-university.csl # referencing format used.
+    template: ["Template/paged-Texevier.html"]
+
+    toc: true
+    # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
+    self_contained: TRUE
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
+                      message=FALSE, warning=FALSE, comment = NA, error=FALSE)
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse)
+```
+
+\newpage
+
+# Introduction {-}
+
+# Data  {-}
+
+```{r, include=FALSE}
+msci <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/19776209/data/msci.rds")
+bonds <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/19776209/data/bonds_10y.rds")
+comms <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/19776209/data/comms.rds")
+```
+
+To conduct this analysis, data on total returns of MSCI funds (msci), 10yr bond yields (bonds), and a commodity price index (comms).
+
+
+# Exploratory Analysis
+
+```{r}
+msci %>% ggplot() +geom_line(aes(date, Price)) + facet_wrap(~Name)
+
+msci %>% filter(Name=="MSCI_EM") 
+
+comms %>% filter(Name=="Oil_Brent")
+
+bonds %>% filter(Name=="Russia_10Yr")
+
+```
+
+
+
+
+
+
+

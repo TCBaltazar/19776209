@@ -15,41 +15,33 @@ output:
     toc: true
     # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
     self_contained: TRUE
-abstract: |
-    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
-    Abstracts have no spaces, but can have bullets.
-
-    Bullets can be created as follows
-
-    + You can add bullets, but do not add colons please.
-
-    + Line breaks are also not permitted.
 
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+knitr::opts_chunk$set(echo = FALSE, fig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
+                      message=FALSE, warning=FALSE, comment = NA, error=FALSE)
 library(pacman)
 pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate)
 ```
 
 \newpage
 
-# Introduction {-}
+# Introduction 
 
+In this section, data on the ALSI and SWIX top 40 Indexes is used to conduct analysis. The performance of stocks will be compared, and stratification (using data on the USDZAR rate) will be used to compare the return profiles of these indeces during periods of low and high currency volatility. 
 
-# Data  {-}
+# Data
 
-```{r}
+```{r, include=FALSE}
 T40 <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/T40.rds")
 Reb_Days <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/Rebalance_days.rds")
 USDZAR <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/usdzar.rds")
 ```
 
+T40 is a variable containing data on daily stock returns, as well as information on the ALSI (J200) and SWIX (J400) stock indexes. In addition, to supplement this analysis, data on the USDZAR spot rate is loaded (called USDZAR) in order to perform stratification, and analyze the behavior of the indexes during periods of currency volatility. 
 
-## Exploratory Analysis
-
-```{r}
+```{r, include=FALSE}
 T40_info <- left_join(T40 %>% select(Short.Name) %>% unique() %>% mutate(N=(1:92)),
                       T40 %>% select(Tickers) %>% unique() %>% mutate(N=(1:92)),
                       by="N") %>% select(-N) %>% arrange(Tickers)
@@ -61,27 +53,9 @@ T40$Tickers <- gsub(" SJ Equity", "", T40$Tickers)
     
 ```
 
-Checking for missing values in returns yields `r sum(is.na(T40$Return))`. We can therefore proceed with the analysis.
+Checking for missing values in returns yields `r sum(is.na(T40$Return))`. There were, however, `r sum(is.na(T40$SWIX))` missing values for the J400, and `r sum(is.na(T40$ALSI))` missing values for the J200. Before proceeding, need to impute these missing returns; using the mean value of the respected index, and the coalesce function. 
 
-Many missing values in the SWIX (`r sum(is.na(T40$SWIX))`) and ALSI (`r sum(is.na(T40$ALSI))`) columns, however. Need to impute missing returns; use mean value of the respective index. 
-
-```{r}
-
-SWIX <- T40 %>% select(date, SWIX) %>%
-    group_by(date) %>%
-    mutate(Avg=mean(SWIX, na.rm=T)) %>%
-    mutate(Avg=coalesce(Avg, 0)) %>%
-    ungroup() %>%
-    mutate(SWIX=coalesce(SWIX, Avg)) %>%
-    select(-Avg)
-    
-ALSI <- T40 %>% select(date, ALSI) %>%
-    group_by(date) %>%
-    mutate(AVg=mean(ALSI, na.rm=T)) %>%
-    mutate(AVg=coalesce(AVg, 0)) %>%
-    ungroup() %>%
-    mutate(ALSI=coalesce(ALSI, AVg)) %>%
-    select(-AVg)
+```{r, include=FALSE}
 
 T40 <- T40 %>% group_by(date) %>% 
     mutate(Avg1=mean(SWIX, na.rm=T)) %>%
@@ -97,17 +71,10 @@ T40 <- T40 %>% group_by(date) %>%
 
 ```
 
-There are now `r sum(is.na(T40$SWIX))` missing values for the SWIX, and `r sum(is.na(T40$ALSI))` missing values for the ALSI.
+There are now no missing values for the respective indexes. 
+Secondly, for this discussion only stocks that have data for the full sample period (2 January 2008-29 October 2021) will be considered. Initially, there were 92 tickers in total.
 
-```{r}
-
-
-```
-
-
-*Considering only stocks that have data from first period 2008-01-02 until last period 2021-10-29* ... initially, 92 Tickers in total
-
-```{r}
+```{r, include=FALSE}
 
 T40 <- T40 %>% arrange(date) %>%
     filter(!is.na(Return)) %>%
@@ -128,52 +95,64 @@ T40 <- T40 %>% filter(Tickers %in% T40_low & Tickers %in% T40_high) %>%
 
 ```
 
-*Issues*
+After restricting observations to those only available for the full sample period, there are 20 tickers remaining, out of the initial 92. 
 
-AMS (2016).. stayed large_cap, GFI (2016/17).. became mid_cap, ANG (2018), EXX (2019).. became mid_cap, INP (2020).. became mid_cap, INL (2020).. became mid_cap, 
+Another issue that was found was that many of the stocks experienced significant changes in their market capitalization over the sample period. Specifically, AMS (2016), GFI (2016/17), ANG (2018), EXX (2019), INP (2020), and INL (2020). The first four are all in the Resources sector, which could explain why their market capitalization decreased so much in similar periods (ie when commodity prices crashed), whilst the latter two are Financials, whose drop in market cap happened in the period of the COVID pandemic. 
 
-Stocks that have NA Index_Name were large caps. After some period (where NA's present), they become mid-cap. classify NA's as Mid_Cap.
+These stocks that have some NA's as values for the Index_Name were all Large_Caps, after some period (where NA's present), they became Mid_Caps. Therefore need to classify them as such for the periods where information is missing. 
 
-```{r}
+```{r, include=FALSE}
+sum(is.na(T40$Index_Name)) # 340 missing values
 
 T40 <- T40 %>% mutate(Size=coalesce(Index_Name, "Mid_Caps")) %>%
     select(-Index_Name)
-# Previously, 340 missing Index_Names
-sum(is.na(T40$Size)) # No missing Index_Names
+
+sum(is.na(T40$Size)) # No missing values
 ```
 
 Previously, there were 340 missing Index_Names. After classifying the missing stocks as mid_caps, there are none.
 
+# Exploratory Analysis 
+
+In this section, three figures are presented displaying the behavior of the returns series over time.
+
+```{r, fig.cap="Returns by Sector"}
+
+T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Sector) + labs(x="Year")
+
+```
 
 
-```{r}
+```{r, fig.cap="Returns by Size"}
 
-T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Sector)
+T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) + fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Size) + labs(x="Year")
 
 ```
 
-```{r}
-
-T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Size)
-
+```{r, fig.cap="Returns by Index"}
+T40 %>% select(date, SWIX, ALSI) %>%
+  gather(Index, Return, -date) %>% ggplot() +
+  geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +
+  fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Index) + 
+  labs(x="Year")
 ```
-Most of the stocks that have data for the full sample period are large caps. Many of which had period where their market capitalizations fell below a certain threshold, and thus became classified as mid cap stocks.
 
 
-## Stratification using USDZAR
 
-```{r}
+# Stratification Analysis using USDZAR
+
+```{r, include=FALSE}
 USDZAR <- USDZAR %>% filter(date>ymd(20080101)) %>% # need to restrict T40 data for Tickers that have data until this date.
     spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy)
 ```
 
-```{r}
+```{r, fig.cap="USDZAR Spot (2008-2021)"}
 USDZAR %>% ggplot() + geom_line(aes(date, USDZAR)) + fmxdat::theme_fmx() + fmxdat::fmx_cols()+
     labs(x="Year", y="USDZAR Spot", subtitle="USDZAR Spot (2008-2021)")
 ```
 
 
-```{r}
+```{r, include=FALSE}
 
 ZARSD <- USDZAR %>% mutate(YearMonth=format(date, "%Y%B")) %>%
     group_by(YearMonth) %>% summarize(SD=sd(USDZAR)*sqrt(252)) %>% # 252 trading days in a year
@@ -184,8 +163,14 @@ Lo_Vol <- ZARSD %>% filter(SD<BotQtile) %>% pull(YearMonth)
 
 ```
 
-
 ```{r}
+Vol_df <-list(Hi_Vol, Lo_Vol) 
+data.frame(Vol_df) %>% kable(col.names=c("High_Volatility", "Low Volatility"), caption="Currency Volatility Months", format="html")
+```
+
+Comparing the relative performance of the two indexes during periods of currency volatility (as specified above).
+
+```{r, include=FALSE}
 T40_Indeces <- T40 %>% select(date, SWIX, ALSI) %>%
         gather(Index, Return, -date) %>% mutate(YearMonth=format(date, "%Y%B"))
 
@@ -204,22 +189,15 @@ Perf_Comparisons_Indeces <- function(T40_Indeces, YMs, Alias) {
 perf_hi_Indeces <- Perf_Comparisons_Indeces(T40_Indeces, YMs=Hi_Vol, Alias="High_Vol")
 perf_lo_Indeces <- Perf_Comparisons_Indeces(T40_Indeces, YMs=Lo_Vol, Alias = "Low_Vol")
 
-
-
 ```
 
-# Results
+## Results
 
 ```{r}
-perf_hi_Indeces %>%  kable(caption="Index Performance: High Vol",  format="html", digits=2)
+left_join(perf_hi_Indeces, perf_lo_Indeces, by="Index") %>% kable(caption="Index Performance: Currency Volatility",  format="html", digits=2, col.names=c("Index", "SD_H", "Full_SD_H", "Period", "Ratio_H", "SD_L", "Full_SD_L", "Period", "Ratio_L"))
 ```
 
-```{r}
-perf_lo_Indeces %>% kable(caption="Index Performance: Low Vol",  format="html", digits=2)
-```
-
-
-
+From the above table, one can see that, during periods of high currency volatility, the SWIX (J400) index exhibits higher volatility, whereas during periods of lower currency volatility, the ALSI (J200) has a lower volatility, as implied by the standard deviation.
 
 
 

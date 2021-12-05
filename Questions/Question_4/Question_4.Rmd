@@ -1,0 +1,111 @@
+---
+title: "Question 4: Volatility and GARCH Estimates"
+author: "TC Baltazar (19776209)"
+date: "December 2021"
+# date: "`r Sys.Date()`"
+bibliography: Tex/ref.bib       # Do not edit: Keep this naming convention and location.
+output:
+  pagedown::html_paged:
+    # template: wp_paged.html
+    # css: ['wp.css', 'wp-fonts.css', 'wp-page.css']
+    css: ["Template/default-fonts-Texevier.css", "Template/default-page-Texevier.css", "Template/default-Texevier.css"]
+    csl: Template/harvard-stellenbosch-university.csl # referencing format used.
+    template: ["Template/paged-Texevier.html"]
+
+    toc: true
+    # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
+    self_contained: TRUE
+abstract: |
+    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
+    Abstracts have no spaces, but can have bullets.
+
+    Bullets can be created as follows
+
+    + You can add bullets, but do not add colons please.
+
+    + Line breaks are also not permitted.
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate)
+```
+
+\newpage
+
+# Introduction {-}
+
+
+
+# Data  {-}
+
+
+
+```{r, include=FALSE }
+
+cncy <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/currencies.rds")
+cncy_Carry <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/cncy_Carry.rds")
+cncy_value <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/cncy_value.rds")
+cncyIV <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/cncyIV.rds")
+bbdxy <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/bbdxy.rds")
+
+```
+
+*Data for ZAR*
+
+```{r}
+consolidated_ZAR <- left_join(cncy %>% filter(Name=="SouthAfrica_Cncy") %>% filter(date>ymd(19990207)) %>% spread(Name, Price),
+                              cncyIV %>% filter(Name=="SouthAfrica_IV") %>% spread(Name, Price), by="date")
+    
+consolidated_ZAR <- left_join(consolidated_ZAR %>% filter(date>ymd(20000917)), # Carry returns only available from here
+                              cncy_Carry %>% spread(Name, Price), by="date") %>%
+    rename("Spot"=SouthAfrica_Cncy) %>% rename("IV"=SouthAfrica_IV) %>% rename("Carry"=DBHVG10U) %>%
+    left_join(., cncy_value %>% filter(date>ymd(20000917)) %>% spread(Name, Price), by="date") %>% rename("Value"=DBPPPUSF) %>%
+    filter(date>ymd(20041230)) %>% left_join(., bbdxy %>% spread(Name, Price), by="date")
+
+
+```
+
+
+```{r}
+
+consolidated_ZAR %>% ggplot() + geom_line(aes(date, Spot)) + labs(x="Year", y="ZAR Spot") + theme_bw()
+
+```
+
+```{r}
+
+consolidated_ZAR %>% ggplot() + geom_line(aes(date, IV)) + labs(x="Year", y="ZAR Implied Volatility") + theme_bw()
+
+```
+
+```{r}
+
+consolidated_ZAR %>% ggplot() + geom_line(aes(date, Carry)) + labs(x="Year", y="Carry Trade Returns") + theme_bw()
+
+```
+
+
+
+```{r}
+
+consolidated_ZAR %>% ggplot() + geom_line(aes(date, Value)) + labs(x="Year", y="Value Strategy Returns") + theme_bw()
+
+```
+
+
+```{r}
+
+consolidated_ZAR %>% ggplot() + geom_line(aes(date, BBDXY)) + labs(x="Year", y="Dollar Spot Index") + theme_bw()
+
+```
+
+
+
+
+
+
+
+
+

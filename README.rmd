@@ -4,10 +4,10 @@ output:
     variant: markdown_github
 ---
 
-# Purpose
+# Purpose {-}
 
 This work folder was created to be used in the evaluation for the Financial Econometrics course presented at Stellebosch University for the purpose of completing my Mcom (Economics). 
-It outlines ... and for this practical, I will attempt to do ... 
+It outlines my workflow, and rationale, while completing the tutorial. 
 
 ```{r, include=FALSE}
 
@@ -18,8 +18,7 @@ gc() # garbage collection - It can be useful to call gc after a large object has
 Below, the r setup used throughout. Importantly, the packages loaded for each question vary depending on the respective requirements.  
 
 
-
-```{r setup, message=FALSE}
+```{r setup, message=FALSE, error=FALSE, warning=FALSE}
 knitr::opts_chunk$set(fig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
                       message=FALSE, warning=FALSE, comment = NA)
 library(pacman)
@@ -27,9 +26,7 @@ pacman::p_load(fmxdat, Texevier, knitr, kableExtra, tidyverse, readr)
 
 ```
 
-
-
-# Description
+# Description {-}
 
 This folder was created using the fmxdat package (https://github.com/Nicktz/fmxdat) with the following code:
 ```{r, eval=FALSE}
@@ -43,11 +40,14 @@ In addition, the folders used for the seperate questions (inside the "root" *Que
 Texevier::create_template_html(directory = 'Questions', template_name = 'Question_1')
 Texevier::create_template_html(directory='Questions', template_name = 'Question_2')
 Texevier::create_template_html(directory='Questions', template_name = 'Question_3')
+Texevier::create_template_html(directory='Questions', template_name = 'Question_4')
+Texevier::create_template_html(directory='Questions', template_name = 'Question_5')
+Texevier::create_template_html(directory='Questions', template_name = 'Question_6')
 
 ```
 
 
-# Data
+# Data {-}
 
 The relevant data used in completing this practical was sourced from: https://www.fmx.nfkatzke.com/FMX_data_2021.zip.
 
@@ -61,15 +61,740 @@ somedat <- read_rds("data/some_data.rds")
 
 ```
 
-# Question 1
+# Question 1: Yield Spread
+```{r, include=FALSE}
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate, pastecs, ggpubr, Hmisc, corrplot)
 
+```
 
-# Question 2
+## Introduction 
+
+Bond yields are an important economic indicator, and can be seen as a sign of investor sentiment about the economy. Interest rates and bond yields have a positive relationship, and, to a large extent, lower yields on Advanced Economy bonds can lead investors to search for yield elsewhere. This means that when there is a "risk-on" sentiment in global markets, and investors shift more capital into Emerging Markets, this greater demand for bonds should drive up their prices and, by extension, decrease the yield to investors. This sections of the README aims to investigate trends in yield spreads using the data provided.
+
+## Data
 
 ```{r}
+SA_bonds <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/SA_Bonds.rds") %>%
+    rename("ZA_3M"=SA_3M)
+BE_Infl <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/BE_Infl.rds")
+bonds_2y <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/bonds_2y.rds")
+bonds_10y <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/bonds_10y.rds")
+usdzar <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/usdzar.rds")
+ZA_Infl <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/ZA_Infl.rds")
+VIX <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/IV.rds")
+ZAR_IY <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/ZAR_IY.rds")
+```
+
+The data sourced includes information on bond yields for SA (SA_bonds), as well as a wide basket of Advanced and Emerging economies (bonds_2y and bonds_10y). Data on the USD:ZAR spot rate is provided in "usdzar", VIX is a composite volatility index including indicators for the US, EU, and EME's. ZA_Infl contains historical inflation rates for SA, and BE_Infl is Break-Even Inflation, which gives an insight into the market's pricing of future inflation. Finally, ZAR_IY is the 6-month forward implied yield for SA.
+
+## Exploratory Analysis
+
+Firstly, due to constraints on the time periods available for many of the countries, and the reduced time frame available for the Break-Even inflation variable, the sample was restricted to consider only dates from 2012-05-06 (ie the first observation for BE_Infl). 
+
+Calculating bond spreads was done using the formula:
+$Spread=Yield_{10Yr}-Yield_{2Yr}$
+
+```{r}
+BRIC <- c("Brazil", "CHINA", "India", "Russia")
+bonds_10y$Name <- gsub("_10Yr", "", bonds_10y$Name)
+bonds_2y$Name <- gsub("_2yr", "", bonds_2y$Name) # remove unnecessary labels
+
+BRICS_10Yr <- left_join(SA_bonds %>% arrange(date) %>% select(date, ZA_10Yr) %>% filter(date>ymd(20120506)), 
+                        bonds_10y %>% filter(Name %in% BRIC) %>% spread(Name, Bond_10Yr) %>% 
+    setNames(c("date", "BRA_10Yr", "CHN_10Yr", "IND_10Yr", "RUS_10Yr")) %>% filter(date>ymd(20120506)), by="date") %>%
+    gather(Tickers, Val, -date)
+
+SA_2Yr <- SA_bonds %>% arrange(date) %>% select(date, ZA_2Yr) %>% filter(date>ymd(20120506)) 
+
+BRIC_2Yr <- bonds_2y %>% filter(Name %in% BRIC) %>% spread(Name, Bond_2Yr) %>% 
+    setNames(c("date", "BRA_2Yr", "CHN_2Yr", "IND_2Yr", "RUS_2Yr")) %>% filter(date>ymd(20120506))
+
+BRICS_2Yr <- left_join(SA_2Yr, BRIC_2Yr, by="date") %>% gather(Tickers, Val, -date)
+
+
+```
+
+```{r, fig.cap="BRICS 2Yr Bond Yields (2012-2021)"}
+
+BRICS_2Yr %>% ggplot() +
+    geom_line(aes(date, Val, color=Tickers))  +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Bond Yields",
+         subtitle="BRICS 2Yr Bond Yields (2012-2021)")
+
+
+    
 ```
 
 
+```{r, fig.cap="BRICS 10Yr Bond Yields (2012-2021)"}
+BRICS_10Yr %>% ggplot() + geom_line(aes(date, Val, color=Tickers)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Bond Yields",
+         subtitle="BRICS 10Yr Bond Yields (2012-2021)")
+
+```
+
+
+```{r, fig.cap="BE Inflation (2012-2021)"}
+
+BE_Infl %>% spread(Name, Price) %>%
+    ggplot() + geom_line(aes(date, SAGGBE10)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="Break-Even Inflation", subtitle="BE Inflation (2012-2021)")
+
+```
+
+```{r, fig.cap="ZA Inflation (2012-2021)"}
+
+ZA_Infl %>% spread(Name, Price) %>% filter(date>ymd(20120506)) %>%
+    ggplot() + geom_line(aes(date, ZAR_Infl)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="ZA Inflation", subtitle="ZA Inflation (2012-2021)")
+
+```
+
+
+```{r, fig.cap="USDZAR Spot (2012-2021)"}
+
+usdzar %>% spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy) %>% filter(date>ymd(20120506)) %>%
+    ggplot() + geom_line(aes(date, USDZAR)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="USDZAR Spot", subtitle="USDZAR Spot (2012-2021)")
+```
+
+
+
+```{r, fig.cap = "Emerging Market Volatility (2012-2021)"}
+
+VIX %>% filter(Name=="VXEEM", date>ymd(20120506)) %>% spread(Name, Price) %>%
+    ggplot() + geom_line(aes(date, VXEEM)) +fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="VXEEM", subtitle="Emerging Market Volatility (2012-2021)")
+
+```
+
+```{r}
+
+consolidated_SA <- left_join(SA_2Yr, 
+                          VIX %>% filter(Name=="VXEEM", date>ymd(20120506)) %>% spread(Name, Price),
+                          by="date") %>%
+    left_join(., SA_bonds %>% arrange(date) %>% select(date, ZA_10Yr) %>% filter(date>ymd(20120506)),
+              by="date") %>% 
+    left_join(., BE_Infl %>% spread(Name, Price), by="date") %>%
+    left_join(., usdzar %>% spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy) %>% filter(date>ymd(20120506)), by="date") %>% 
+    left_join(., ZA_Infl %>% spread(Name, Price) %>% filter(date>ymd(20120506)), by="date") %>%
+    mutate(Spread=ZA_10Yr-ZA_2Yr)
+```
+
+
+```{r, fig.cap = "ZA Yield Spread (2012-2021)"}
+consolidated_SA %>% ggplot() + geom_line(aes(date, Spread)) + fmxdat::theme_fmx() +fmxdat::fmx_cols()+
+    labs(x="Year", y="Spread", subtitle="ZA Yield Spread (2012-2021)")
+
+```
+
+
+As can be seen from the figure above, yield spreads have increased significantly in SA since the COVID-19 pandemic, which coincides with a sharp increase in the EME volatility index. The next section provides descriptive statistics for the variables included in the consolidated SA dataset, after which a correlation analysis will be performed to determine the influence of the other variables on bond yield spreads in SA.
+
+### Descriptive Statistics
+
+Tables 1-8 below provide descriptive statistics for the relevant variables. 
+
+```{r}
+pastecs::stat.desc(SA_bonds[, -1])%>% kable(caption="Summary Statistics: SA Bonds (Full Sample)",  format="html", digits=2)
+
+```
+
+```{r}
+# Since 2011
+pastecs::stat.desc(SA_bonds %>% filter(date>ymd(20120506)) %>%
+            .[, -1]) %>%  kable(caption="Summary Statistics: SA Bonds (Reduced Sample)",  format="html", digits=2)
+```
+
+```{r}
+pastecs::stat.desc(BE_Infl %>% spread(Name, Price) %>% arrange(date) %>% .[, -1]) %>% kable(caption="Summary Statistics: BE Inflation", format="html", digits=2)
+```
+
+```{r}
+
+pastecs::stat.desc(bonds_2y %>% filter(Name %in% BRIC) %>% 
+            arrange(date) %>% spread(Name, Bond_2Yr) %>% 
+            filter(date>ymd(20120506)) %>%
+            .[,-1]) %>% kable(caption="Summary Statistics: BRIC 2yr Bonds", format="html", digits=2)
+
+```
+
+```{r}
+
+
+
+pastecs::stat.desc(bonds_10y %>% filter(Name %in% BRIC) %>%
+                       arrange(date) %>% spread(Name, Bond_10Yr)  %>%
+                       .[,-1])  %>% kable(caption="Summary Statistics: BRIC 10yr Bonds", format="html", digits=2)
+                       
+```
+
+```{r}
+
+pastecs::stat.desc(usdzar %>% spread(Name, Price) %>%
+                       arrange(date)  %>%
+                       .[,-1]) %>% kable(caption="Summary Statistics: USDZAR Spot", format="html", digits=2)
+```
+
+```{r}
+pastecs::stat.desc(ZA_Infl %>% spread(Name, Price) %>%
+                       arrange(date) %>% filter(date>ymd(20120506)) %>%
+                       .[,-1]) %>% kable(caption="Summary Statistics: ZA Inflation", format="html", digits=2)
+```
+
+```{r}
+
+pastecs::stat.desc(VIX %>% filter(Name=="VXEEM") %>% spread(Name, Price) %>% arrange(date) %>%
+    filter(date>ymd(20120506)) %>%
+    .[,-1]) %>% kable(caption="Summary Statistics: VIX (Emerging Markets)", format="html", digits=2)
+
+```
+
+For the VIX data, only EME volatility was considered, and for the bond yields (2 and 10 year), the sample was restricted to only consider the BRIC economies. For the remainder of this discussion, focus will be on the domestic (South African) economy.
+
+## Correlation Analysis
+
+```{r}
+
+consolidated_SA <- consolidated_SA %>% select(-ZA_2Yr, -ZA_10Yr, -ZAR_Infl) # to avoid unnecessary correlations (inflation captured by BE_infl, Spread captures bond yields at diff. maturities)
+
+# Saving objects for corrplot
+M <- consolidated_SA %>% select(-date)
+M1 <- cor(M)
+
+
+cor.mtest <- function(mat, ...) {
+ mat <- as.matrix(mat)
+n <- ncol(mat)
+p.mat<- matrix(NA, n, n)
+diag(p.mat) <- 0
+for (i in 1:(n - 1)) {
+     for (j in (i + 1):n) {
+         tmp <- cor.test(mat[, i], mat[, j], ...)
+           p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+       }
+   }
+   colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+   p.mat
+ }
+p.mat <- cor.mtest(M)
+
+```
+
+```{r, fig.cap="Correlation Plot"}
+
+corrplot(M1, type="lower", order="hclust",  p.mat = p.mat, sig.level = 0.01, insig = "blank")
+
+```
+
+
+```{r}
+cor1 <- cor.test(consolidated_SA$Spread, consolidated_SA$SAGGBE10, method="pearson")
+cor2 <- cor.test(consolidated_SA$Spread, consolidated_SA$USDZAR, method="pearson")
+cor3 <- cor.test(consolidated_SA$Spread, consolidated_SA$VXEEM, method="pearson")
+```
+
+The yield spread on SA bonds is therefore positively related to the EM volatility index (`r cor3$estimate`, p-value=`r cor3$p.value`), the USDZAR spot rate (`r cor2$estimate`, p-value=`r cor2$p.value`), and negatively related to the Break-Even inflation measure (`r cor1$estimate`, p-value=`r cor1$p.value`). The stronger US dollar vis-a-vis the Rand, and the greater perceived 'risk' in EM's (measured by the VXEEM index) since the onset of the COVID-19 pandemic, can therefore be seen as two potential causes of the significantly higher yield spreads seen in SA since 2020.
+
+
+\newpage
+
+# Question 2: Portfolio Construction
+
+```{r, include=FALSE}
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate)
+```
+
+## Introduction
+
+In this section, data on the ALSI and SWIX top 40 Indexes is used to conduct analysis. The performance of stocks will be compared, and stratification (using data on the USDZAR rate) will be used to compare the return profiles of these indeces during periods of low and high currency volatility. 
+
+## Data
+
+```{r}
+T40 <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/T40.rds")
+Reb_Days <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/Rebalance_days.rds")
+USDZAR <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/usdzar.rds")
+```
+
+T40 is a variable containing data on daily stock returns, as well as information on the ALSI (J200) and SWIX (J400) stock indexes. In addition, to supplement this analysis, data on the USDZAR spot rate is loaded (called USDZAR) in order to perform stratification, and analyze the behavior of the indexes during periods of currency volatility. 
+
+```{r}
+T40_info <- left_join(T40 %>% select(Short.Name) %>% unique() %>% mutate(N=(1:92)),
+                      T40 %>% select(Tickers) %>% unique() %>% mutate(N=(1:92)),
+                      by="N") %>% select(-N) %>% arrange(Tickers) # Keeping descriptions of stocks
+
+T40 <- T40 %>% rename("ALSI"=J200) %>% rename("SWIX"=J400) %>% select(-Short.Name) # renaming for convenience
+
+T40$Tickers <- gsub(" SJ Equity", "", T40$Tickers) # simplifying
+
+sum(is.na(T40$Return)) # no missing values for returns
+```
+
+Firstly, although there were no missing values for the individual stock returns (see above), there were `r sum(is.na(T40$SWIX))` missing values for the J400, and `r sum(is.na(T40$ALSI))` missing values for the J200. Before proceeding, need to impute these missing returns; using the mean value of the respected index, and the coalesce function.
+
+```{r}
+
+T40 <- T40 %>% group_by(date) %>% 
+    mutate(Avg1=mean(SWIX, na.rm=T)) %>%
+    mutate(Avg1=coalesce(Avg1, 0)) %>%    # Avg1 creates a column for the mean of the J400
+    ungroup() %>%
+    mutate(SWIX=coalesce(SWIX, Avg1)) %>%
+    mutate(Avg2=mean(ALSI, na.rm=T)) %>%  # Avg2 creates a column for the mean of the J200
+    mutate(Avg2=coalesce(Avg2, 0)) %>%
+    ungroup() %>%
+    mutate(ALSI=coalesce(ALSI, Avg2)) %>%
+    select(-Avg1, -Avg2)
+
+sum(is.na(T40$SWIX))  # zero NA's
+sum(is.na(T40$ALSI))  # zero NA's
+
+```
+
+There are now no missing values for the respective indexes. 
+Secondly, for this discussion only stocks that have data for the full sample period (2 January 2008-29 October 2021) will be considered. Initially, there were 92 tickers in total.
+
+```{r}
+
+T40 <- T40 %>% arrange(date) %>%
+    filter(!is.na(Return)) %>%
+    mutate(YearMonth=format(date, "%Y%B"))
+
+# Considering only indexes with data before 2008-01-01, and using this as common start date
+
+T40_low <- T40 %>% group_by(Tickers) %>%
+    filter(date<ymd(20080103)) %>%
+   ungroup() %>%
+    pull(Tickers) %>% unique() # Tickers available from start date
+
+T40_high <- T40 %>% group_by(Tickers) %>% 
+    filter(date>ymd(20211028)) %>% 
+    ungroup() %>% pull(Tickers) %>% unique() # Tickers available up to end date
+
+T40 <- T40 %>% filter(Tickers %in% T40_low & Tickers %in% T40_high) %>%
+    filter(date>ymd(20080101)) #%>% pull(Tickers) %>% unique() only 20 Tickers have data for full sample period (20080102:20211029)
+
+```
+
+After restricting observations to those only available for the full sample period, there are 20 tickers remaining, out of the initial 92. 
+
+Another issue that was found was that many of the stocks experienced significant changes in their market capitalization over the sample period. Specifically, AMS (2016), GFI (2016/17), ANG (2018), EXX (2019), INP (2020), and INL (2020). The first four are all in the Resources sector, which could explain why their market capitalization decreased so much in similar periods (ie when commodity prices crashed), whilst the latter two are Financials, whose drop in market cap happened in the period of the COVID pandemic. 
+
+These stocks that have some NA's as values for the Index_Name were all Large_Caps, after some period (where NA's present), they became Mid_Caps. Therefore need to classify them as such for the periods where information is missing. 
+
+```{r}
+sum(is.na(T40$Index_Name)) # 340 missing values
+
+T40 <- T40 %>% mutate(Size=coalesce(Index_Name, "Mid_Caps")) %>%
+    select(-Index_Name)
+
+sum(is.na(T40$Size)) # No missing values
+```
+
+## Exploratory Analysis 
+
+
+```{r, fig.cap="Returns by Sector"}
+
+T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Sector) + labs(x="Year")
+
+```
+
+
+```{r, fig.cap="Returns by Size"}
+
+T40 %>% ggplot() + geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) + fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Size) + labs(x="Year")
+
+```
+
+```{r, fig.cap="Returns by Index"}
+T40 %>% select(date, SWIX, ALSI) %>%
+  gather(Index, Return, -date) %>% ggplot() +
+  geom_line(aes(date, Return), color="steelblue", size=1.2, alpha=0.8) +
+  fmxdat::theme_fmx() + fmxdat::fmx_cols() + facet_wrap(~Index) + 
+  labs(x="Year")
+```
+
+
+## Stratification Analysis
+
+```{r}
+USDZAR <- USDZAR %>% filter(date>ymd(20080101)) %>% # need to restrict T40 data for Tickers that have data until this date. End date is the same as in previous sections
+    spread(Name, Price) %>% rename("USDZAR"= SouthAfrica_Cncy)
+```
+First loading and visualizing currency data.
+
+```{r, fig.cap="USDZAR Spot (2008-2021)"}
+USDZAR %>% ggplot() + geom_line(aes(date, USDZAR)) + fmxdat::theme_fmx() + fmxdat::fmx_cols()+
+    labs(x="Year", y="USDZAR Spot", subtitle="USDZAR Spot (2008-2021)")
+```
+
+Then, defining periods of high and low currency volatility.
+
+```{r}
+
+USDZAR_sd <- USDZAR %>% mutate(YearMonth=format(date, "%Y%B")) %>%
+    group_by(YearMonth) %>% summarize(SD=sd(USDZAR)*sqrt(252)) %>% # 252 trading days in a year
+    mutate(TopQtile=quantile(SD,0.8), BotQtile=quantile(SD,0.2))
+
+Hi_Vol <- USDZAR_sd %>% filter(SD>TopQtile) %>% pull(YearMonth) # high volatility periods
+Lo_Vol <- USDZAR_sd %>% filter(SD<BotQtile) %>% pull(YearMonth) # low volatility periods
+
+```
+
+Below, the periods in question.
+```{r}
+Vol_df <-list(Hi_Vol, Lo_Vol) 
+data.frame(Vol_df) %>% kable(col.names=c("High_Volatility", "Low Volatility"), caption="Currency Volatility Months", format="html")
+```
+
+Comparing the relative performance of the two indexes during periods of currency volatility (as specified above).
+```{r}
+
+T40_Indeces <- T40 %>% select(date, SWIX, ALSI) %>%
+        gather(Index, Return, -date) %>% mutate(YearMonth=format(date, "%Y%B"))
+
+Perf_Comparisons_Indeces <- function(T40_Indeces, YMs, Alias) {
+
+    Unconditional_SD <- T40_Indeces %>% group_by(Index) %>%
+        mutate(Full_SD=sd(Return)*sqrt(252)) %>% # 252 trading days p/year
+        filter(YearMonth %in% YMs) %>%
+        summarise(SD=sd(Return)*sqrt(252), across(.cols=starts_with("Full"), .fns=max)) %>%
+        arrange(desc(SD)) %>% mutate(Period=Alias) %>%
+        #group_by(Index) %>%
+        mutate(Ratio=SD/Full_SD)
+    Unconditional_SD
+}
+
+perf_hi_Indeces <- Perf_Comparisons_Indeces(T40_Indeces, YMs=Hi_Vol, Alias="High_Vol")
+perf_lo_Indeces <- Perf_Comparisons_Indeces(T40_Indeces, YMs=Lo_Vol, Alias = "Low_Vol")
+
+```
+
+### Results
+
+```{r}
+left_join(perf_hi_Indeces, perf_lo_Indeces, by="Index") %>% kable(caption="Index Performance: Currency Volatility",  format="html", digits=2, col.names=c("Index", "SD_H", "Full_SD_H", "Period", "Ratio_H", "SD_L", "Full_SD_L", "Period", "Ratio_L"))
+```
+
+From the above table, one can see that, during periods of high currency volatility, the SWIX (J400) index exhibits higher volatility, whereas during periods of lower currency volatility, the ALSI (J200) has a lower volatility, as implied by the standard deviation.
+
+
+
+\newpage
+
+# Question 3: Volatility Comparison
+
+```{r, include=FALSE}
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse,
+               lubridate, psych, broom,
+               FactoMineR, factoextra, devtools, rmsfuns,
+               huxtable, fmxdat)
+```
+## Introduction
+
+This discussion aims to compare the concentration of returns among the ALSI (J200) constituents by using Principal Component Analysis (PCA) to study the concentration, and commonality fo returns within this index. In addition, monthly returns volatility will be calculated and this data will be used for stratification in order to compare return source concentrations for periods of high and low market volatility.
+
+## Data
+
+```{r}
+T40 <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/T40.rds")
+
+T40$Tickers <- gsub(" SJ Equity", "", T40$Tickers)
+
+T40 <- T40 %>% select(-Short.Name, -J400) 
+
+T40 <- T40 %>% group_by(Tickers) %>% arrange(date) %>% 
+    mutate(Avg1=mean(J200, na.rm=T)) %>%
+    mutate(Avg1=coalesce(Avg1, 0)) %>%
+    mutate(J200=coalesce(J200, Avg1)) %>%
+    mutate(across(.cols=J200, .fns=~log(.)-log(lag(.)), .names="{col}_Returns")) %>%
+    filter(date>first(date)) %>%
+    select(-Avg1) %>%
+    mutate(Avg2=mean(J200_Returns, na.rm=T)) %>%
+    mutate(Avg2=coalesce(Avg2, 0)) %>%
+    mutate(J200_Returns=coalesce(J200_Returns, Avg2)) %>%
+    select(-Avg2) %>%
+    ungroup()
+# using average J200 Returns, to replace NA's
+```
+
+For this question, data on the ALSI and SWIX top 40 Indexes is used to conduct analysis. This is contained in the T40 dataframe, with the variable of interest (J200 index) first being cleared of NA's by replacing them with the mean value of the index. Returns are then calculated for the J200 index. 
+
+## Exploratory Analysis
+```{r, fig.cap="J200 Returns}
+
+T40 %>% ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) +
+    labs(x="Year") + theme_bw()
+
+```
+
+```{r, fig.cap="J200 Returns by Sector"}
+
+T40 %>% ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) +
+labs(x="Year") + theme_bw() + facet_wrap(~Sector)
+
+```
+
+The data appears to be centered around the mean, however there do appear to be some significant values that could potentially bias our results (outliers).
+
+Removing outliers and plotting.
+
+```{r, fig.cap="J200 Returns, sans Outliers"}
+
+T40 %>% mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>% 
+    ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) + 
+    labs(x="Year") + theme_bw() 
+
+```
+
+```{r, fig.cap="J200 Returns by Sector, sans Outliers"}
+
+T40 %>% mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>% 
+    ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) + 
+    labs(x="Year") + theme_bw() + facet_wrap(~Sector)
+
+```
+
+## Principal Component Analysis (PCA)
+
+To perform a PCA, first need to elminate outliers and remove columns with only NA's. Although the returns data appears to already be centered, it must still be demeaned and scaled.
+
+```{r}
+
+data_wide <- T40 %>% select(date, Tickers, J200_Returns) %>%
+    mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>%
+    mutate(J200_Returns=J200_Returns-mean(J200_Returns)) %>%
+    spread(Tickers, J200_Returns)
+
+data_wide <- data_wide[, colSums(is.na(data_wide)) < nrow(data_wide)] %>% 
+.[, colSums(is.na(.) | . == 0, na.rm = TRUE) <= 150] %>% select(-date)
+
+data_wide[is.na(data_wide)] <- 0
+
+
+df_PCA <- PCA(data_wide, graph = FALSE, scale.unit = TRUE)
+```
+
+A violin plot of the data is plotted below. It is similar to a boxplot, but shows the actual distribution of the date; wider sections represent a higher probability that data will take on a certain value, skinnier sections represent a lower probability. 
+```{r, fig.cap="Violin Plot of the Returns Data"}
+violinBy(data_wide %>% as.matrix)
+```
+
+From the above, the returns data appear to be similarly distributed. 
+
+A Scree plot can be used to determine the amount of variation explained by each Principal Component (PC). 
+
+```{r, fig.cap="Scree Plot"}
+fviz_screeplot(df_PCA, ncp = 10)
+```
+
+This indicates that the majority of the variation in the data is explained by the first PC, with the relative variation explained by subsequent components beginning to taper (ie curve flatten) after the fourth component.
+
+The plot below shows the relationship between all variables and the two principal components; positively correlated variables are grouped together, and negatively correlated variables are positioned in opposite quadrants. 
+
+```{r, fig.cap="Variables-PCA"}
+fviz_pca_var(df_PCA, col.var = "steelblue") + theme_minimal()
+```
+
+From this PCA analysis, one can extract the contribution of each variable as well as its quality of representation (given in the tables below).
+
+```{r}
+
+df_PCA$var$contrib %>% kable(caption="Contribution of Variables",  format="html", digits=2)
+
+```
+
+```{r}
+
+df_PCA$var$cos2 %>% kable(caption="Cos2: Quality of Representation",  format="html", digits=2)
+
+```
+
+And, finally, plotting each variables contribution to the PC's. 
+
+```{r, fig.cap="Contribution of Variables to PC1"}
+fviz_contrib(df_PCA, choice = "var", axes = 1)
+
+```
+
+```{r, fig.cap="Contribution of Variables to PC2"}
+fviz_contrib(df_PCA, choice = "var", axes = 2)
+
+```
+
+```{r, fig.cap="Contribution of Variables to PC's 1 & 2"}
+fviz_contrib(df_PCA, choice = "var", axes = 1:2)
+
+```
+
+### Stratification by Volatility
+
+In order to do stratification by period of volatility in returns, one must first identify the periods of low vs high volatility, and then perform the PCA analysis for both periods.
+```{r}
+
+Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>%
+    group_by(YearMonth) %>% summarize(SD=sd(J200_Returns)*sqrt(252)) %>% # 252 trading days in a year
+    mutate(TopQtile=quantile(SD,0.8), BotQtile=quantile(SD,0.2))
+
+Hi_Vol_PCA <- Vol %>% filter(SD>TopQtile) %>% pull(YearMonth)
+Lo_Vol_PCA <- Vol %>% filter(SD<BotQtile) %>% pull(YearMonth)
+
+
+T40_Hi_Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>% group_by(YearMonth) %>%
+    filter(YearMonth %in% Hi_Vol_PCA) %>% ungroup()
+
+T40_Lo_Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>% group_by(YearMonth) %>%
+    filter(YearMonth %in% Lo_Vol_PCA) %>% ungroup()
+
+```
+
+The periods of high and low volatility extracted can be seen below. 
+
+```{r}
+Vol_df_PCA <-list(Hi_Vol_PCA, Lo_Vol_PCA) 
+data.frame(Vol_df_PCA) %>% kable(col.names=c("High_Volatility", "Low Volatility"), caption="Currency Volatility Months", format="html")
+```
+
+First, creating "wide" data frames for the high and low volatility periods.
+
+```{r}
+# high volatility period
+data_wide_Hi_Vol <- T40_Hi_Vol %>% select(date, Tickers, J200_Returns) %>%
+    mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>%
+    mutate(J200_Returns=J200_Returns-mean(J200_Returns)) %>%  # demeaning the returns and removing extreme observations
+    spread(Tickers, J200_Returns)   
+
+data_wide_Hi_Vol <- data_wide_Hi_Vol[, colSums(is.na(data_wide_Hi_Vol)) < nrow(data_wide_Hi_Vol)] %>% 
+.[, colSums(is.na(.) | . == 0, na.rm = TRUE) <= 150] %>% select(-date) # removing columns with NA's
+
+data_wide_Hi_Vol[is.na(data_wide_Hi_Vol)] <- 0  # setting remaining NA's equal to zero
+
+
+df_PCA_Hi_Vol <- PCA(data_wide_Hi_Vol, graph = FALSE, scale.unit = TRUE) # the dataframe
+
+# low volatility period
+data_wide_Lo_Vol <- T40_Lo_Vol %>% select(date, Tickers, J200_Returns) %>%
+    mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
+                        ifelse(J200_Returns< -0.25, -0.25, J200_Returns))) %>%
+    mutate(J200_Returns=J200_Returns-mean(J200_Returns)) %>%  # demeaning the returns and removing extreme observations
+    spread(Tickers, J200_Returns)
+
+data_wide_Lo_Vol <- data_wide_Lo_Vol[, colSums(is.na(data_wide_Lo_Vol)) < nrow(data_wide_Lo_Vol)] %>% 
+.[, colSums(is.na(.) | . == 0, na.rm = TRUE) <= 150] %>% select(-date) # removing columns with NA's
+
+data_wide_Lo_Vol[is.na(data_wide_Lo_Vol)] <- 0 # setting remaining NA's equal to zero
+
+
+df_PCA_Lo_Vol <- PCA(data_wide_Lo_Vol, graph = FALSE, scale.unit = TRUE) # the dataframe
+```
+
+The PCA analysis conducted below follows on from the one done in the previous section, differentiating between periods of high and low volatility in returns.
+
+*Violin Plots*
+```{r, fig.cap="Violin Plot (High Volatility)"}
+violinBy(data_wide_Hi_Vol %>% as.matrix)
+```
+
+```{r, fig.cap="Violin Plot (Low Volatility)"}
+violinBy(data_wide_Lo_Vol %>% as.matrix)
+```
+
+The distributions appear similar, however more variables appear to be significant for the low volatility period.
+
+*Scree Plots*
+
+```{r, fig.cap="Scree Plot (High Volatility)"}
+fviz_screeplot(df_PCA_Hi_Vol, ncp = 10)
+```
+
+```{r, fig.cap="Scree Plot(Low Volatility)"}
+fviz_screeplot(df_PCA_Lo_Vol, ncp = 10)
+```
+
+From the above Scree Plots, one can see that during the high volatility period, PC1 explains a greater proportion of the variation in returns. Whereas during periods of low volatility, the significance of PC1 is diminished, whilst PC2 and PC3 explain a greater proportion of the variation.
+
+*Importance of Components*
+
+```{r, fig.cap="Variables-PCA (High Volatility)"}
+fviz_pca_var(df_PCA_Hi_Vol, col.var = "steelblue") + theme_minimal()
+```
+
+```{r, fig.cap="Variables-PCA (Low Volatility)"}
+fviz_pca_var(df_PCA_Lo_Vol, col.var = "steelblue") + theme_minimal()
+```
+
+From the above figures, the quality of variables during high volatility periods appears to be greater (further from the origin). Their directions tend to be similar in both scenarios, however it is difficult to tell with any certainty due to the overlap caused by the greater number of relevant variables during low volatility periods.
+
+*Variable Contributions*
+
+```{r}
+df_PCA_Hi_Vol$var$contrib %>% kable(caption="Contribution of Variables (High Vol)",  format="html", digits=2)
+
+```
+
+```{r}
+df_PCA_Lo_Vol$var$contrib %>% kable(caption="Contribution of Variables (Low Vol)",  format="html", digits=2)
+```
+
+*Variable Quality*
+
+```{r}
+
+df_PCA_Hi_Vol$var$cos2 %>% kable(caption="Cos2: Quality of Representation (High Vol)",  format="html", digits=2)
+
+```
+
+```{r}
+df_PCA_Lo_Vol$var$cos2 %>% kable(caption="Cos2: Quality of Representation (Low Vol)",  format="html", digits=2)
+
+```
+
+
+*Total Contributions to PC1*
+
+```{r, fig.cap="Contribution of Variables to PC1 (High Volatility)"}
+fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 1)
+
+```
+
+```{r, fig.cap="Contribution of Variables to PC1 (Low Volatility)"}
+fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 1)
+
+```
+
+*Total Contributions to PC2*
+
+```{r, fig.cap="Contribution of Variables to PC2 (High Volatility)"}
+fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 2)
+
+```
+
+```{r, fig.cap="Contribution of Variables to PC2 (Low Volatility)"}
+fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 2)
+
+```
+
+*Total Contributions to PC1 & PC2*
+
+```{r, fig.cap="Contribution of Variables to PC1 & PC2 (High Volatility)"}
+fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 1:2)
+
+```
+
+```{r, fig.cap="Contribution of Variables to PC1 & PC2 (Low Volatility)}
+fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 1:2)
+
+```
+
+
+\newpage
+
+# Question 4:
 
 
 
