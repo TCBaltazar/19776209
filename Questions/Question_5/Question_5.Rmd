@@ -21,7 +21,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, fig.align = "left", fig.height = 3, fig.pos = "H", fig.width = 5,
                       message=FALSE, warning=FALSE, comment = NA, error=FALSE)
-pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse)
+pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate, fmxdat)
 ```
 
 \newpage
@@ -39,17 +39,27 @@ comms <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financia
 To conduct this analysis, data on total returns of MSCI funds (msci), 10yr bond yields (bonds), and a commodity price index (comms).
 
 
-# Exploratory Analysis
+# Exploratory Analysis {-}
 
-```{r}
-msci %>% ggplot() +geom_line(aes(date, Price)) + facet_wrap(~Name)
-
+```{r, eval=FALSE, echo=TRUE}
 msci %>% filter(Name=="MSCI_EM") 
 
 comms %>% filter(Name=="Oil_Brent")
 
 bonds %>% filter(Name=="Russia_10Yr")
 
+```
+
+```{r}
+p <- msci %>% filter(date>ymd(20000101)) %>% 
+  filter(Name==c("MSCI_EM", "MSCI_EU", "MSCI_Growth", "MSCI_Jap", "MSCI_LowVol", "MSCI_USA")) %>%ggplot() +geom_line(aes(date, Price)) + facet_wrap(~Name) + fmxdat::theme_fmx() + labs(x="Year") 
+
+  fmxdat::finplot(p, x.vert = T, x.date.type = "%Y", x.date.dist = "5 years")
+
+```
+
+```{r}
+comms %>% ggplot() + geom_line(aes(date, Price, color=Name)) + theme_bw()
 ```
 
 
