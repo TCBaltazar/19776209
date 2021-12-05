@@ -58,8 +58,8 @@ T40 <- T40 %>% group_by(Tickers) %>% arrange(date) %>%
 
 For this question, data on the ALSI and SWIX top 40 Indexes is used to conduct analysis. This is contained in the T40 dataframe, with the variable of interest (J200 index) first being cleared of NA's by replacing them with the mean value of the index. Returns are then calculated for the J200 index. 
 
-# Exploratory Analysis
-```{r, fig.cap="J200 Returns}
+# Exploratory Analysis {-}
+```{r, fig.cap="J200 Returns"}
 
 T40 %>% ggplot() + geom_line(aes(date, J200_Returns), alpha=0.9) +
     labs(x="Year") + theme_bw()
@@ -96,7 +96,7 @@ T40 %>% mutate(J200_Returns=ifelse(J200_Returns>0.25, 0.25,
 ```
 
 
-# Principal Component Analysis
+# Principal Component Analysis {-}
 
 To perform a PCA, first need to elminate outliers and remove columns with only NA's. Although the returns data appears to already be centered, it must still be demeaned and scaled.
 
@@ -170,7 +170,7 @@ fviz_contrib(df_PCA, choice = "var", axes = 1:2)
 
 ```
 
-## Stratification by Volatility
+## Stratification by Volatility {-}
 
 In order to do stratification by period of volatility in returns, one must first identify the periods of low vs high volatility, and then perform the PCA analysis for both periods.
 
@@ -180,15 +180,15 @@ Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>%
     group_by(YearMonth) %>% summarize(SD=sd(J200_Returns)*sqrt(252)) %>% # 252 trading days in a year
     mutate(TopQtile=quantile(SD,0.8), BotQtile=quantile(SD,0.2))
 
-Hi_Vol <- Vol %>% filter(SD>TopQtile) %>% pull(YearMonth)
-Lo_Vol <- Vol %>% filter(SD<BotQtile) %>% pull(YearMonth)
+Hi_Vol_PCA <- Vol %>% filter(SD>TopQtile) %>% pull(YearMonth)
+Lo_Vol_PCA <- Vol %>% filter(SD<BotQtile) %>% pull(YearMonth)
 
 
 T40_Hi_Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>% group_by(YearMonth) %>%
-    filter(YearMonth %in% Hi_Vol) %>% ungroup()
+    filter(YearMonth %in% Hi_Vol_PCA) %>% ungroup()
 
 T40_Lo_Vol <- T40 %>% mutate(YearMonth=format(date, "%Y%B")) %>% group_by(YearMonth) %>%
-    filter(YearMonth %in% Lo_Vol) %>% ungroup()
+    filter(YearMonth %in% Lo_Vol_PCA) %>% ungroup()
 
 ```
 
@@ -323,7 +323,7 @@ fviz_contrib(df_PCA_Hi_Vol, choice = "var", axes = 1:2)
 
 ```
 
-```{r, fig.cap="Contribution of Variables to PC1 & PC2 (Low Volatility)}
+```{r, fig.cap="Contribution of Variables to PC1 & PC2 (Low Volatility)"}
 fviz_contrib(df_PCA_Lo_Vol, choice = "var", axes = 1:2)
 
 ```

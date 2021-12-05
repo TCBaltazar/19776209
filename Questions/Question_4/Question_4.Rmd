@@ -15,34 +15,23 @@ output:
     toc: true
     # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
     self_contained: TRUE
-abstract: |
-    This is an abstract. Much can be written here. Uncomment this line to go without an abstract.
-    Abstracts have no spaces, but can have bullets.
-
-    Bullets can be created as follows
-
-    + You can add bullets, but do not add colons please.
-
-    + Line breaks are also not permitted.
 
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
-pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate)
+pacman::p_load(modelsummary, gt, knitr, kableExtra,MTS, robustbase, tidyverse, rugarch, lubridate, forecast, tbl2xts, PerformanceAnalytics)
 ```
 
 \newpage
 
 # Introduction {-}
 
+This section aims to use currency data to firstly compare the volatility of the ZAR relative to other currencies, to determine whether it has been 'one of the most volatile currencies' over the past few years. And secondly, to examine whether the ZAR benefits from a strong dollar (ie during periods of risk-on sentiment). Intuitively, because the ZAR is such a liquid currency, and SA has a highly developed financial system- relative to other EME's, but especially when compared to other African countries-  the ZAR should be one of the first EM currencies that investors flock to when EM risk is perceived low (ie when the dollar is strong). 
 
+# Data {-}
 
-# Data  {-}
-
-
-
-```{r, include=FALSE }
+```{r}
 
 cncy <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/currencies.rds")
 cncy_Carry <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/cncy_Carry.rds")
@@ -52,58 +41,116 @@ bbdxy <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financia
 
 ```
 
-*Data for ZAR*
+The data sourced for this analysis exclusively relates to currencies. cncy contains spot rates for `r length(unique(cncy$Name))` different currencies relative to the USD. cncy_Carry and cncy_value are proxy measures, based on Deutsche bank indexes, for the returns of carry trade and value strategies, respectively. Currency implied volatility is captured by cncyIV, and has values for `r length(unique(cncyIV$Name))` currencies. Finally, bbdxy contains data from the Bloomberg Dollar Spot Index, which 'tracks the performance of ten leading global currencies' relative to the US Dollar.
 
-```{r}
+\newpage
+
+# Exploratory and Correlation Analysis {-}
+
+```{r, include=FALSE}
+
+# Creating a joint dataset for the variables relevant to SA
+
 consolidated_ZAR <- left_join(cncy %>% filter(Name=="SouthAfrica_Cncy") %>% filter(date>ymd(19990207)) %>% spread(Name, Price),
                               cncyIV %>% filter(Name=="SouthAfrica_IV") %>% spread(Name, Price), by="date")
     
-consolidated_ZAR <- left_join(consolidated_ZAR %>% filter(date>ymd(20000917)), # Carry returns only available from here
+consolidated_ZAR <- left_join(consolidated_ZAR %>% filter(date>ymd(20000917)), # Carry returns only available from this date
                               cncy_Carry %>% spread(Name, Price), by="date") %>%
     rename("Spot"=SouthAfrica_Cncy) %>% rename("IV"=SouthAfrica_IV) %>% rename("Carry"=DBHVG10U) %>%
     left_join(., cncy_value %>% filter(date>ymd(20000917)) %>% spread(Name, Price), by="date") %>% rename("Value"=DBPPPUSF) %>%
-    filter(date>ymd(20041230)) %>% left_join(., bbdxy %>% spread(Name, Price), by="date")
+    filter(date>ymd(20041230)) %>% left_join(., bbdxy %>% spread(Name, Price), by="date") # value returns only available from this date
 
 
 ```
 
+Plotting variables to see their, historical, movements.
 
-```{r}
+```{r, fig.cap="ZAR Spot"}
 
 consolidated_ZAR %>% ggplot() + geom_line(aes(date, Spot)) + labs(x="Year", y="ZAR Spot") + theme_bw()
 
 ```
 
-```{r}
-
-consolidated_ZAR %>% ggplot() + geom_line(aes(date, IV)) + labs(x="Year", y="ZAR Implied Volatility") + theme_bw()
-
-```
-
-```{r}
-
-consolidated_ZAR %>% ggplot() + geom_line(aes(date, Carry)) + labs(x="Year", y="Carry Trade Returns") + theme_bw()
+```{r, fig.cap="ZAR Implied Volatility"}
+consolidated_ZAR  %>% ggplot() + geom_line(aes(date, IV)) + labs(x="Year", y="ZAR Implied Volatility") + theme_bw()
 
 ```
 
+```{r, fig.cap="Carry Trade Returns"}
+
+consolidated_ZAR %>%  ggplot() + geom_line(aes(date, Carry)) + labs(x="Year", y="Carry Trade Returns") + theme_bw()
+
+```
 
 
-```{r}
+
+```{r, fig.cap="Value Strategy Returns"}
 
 consolidated_ZAR %>% ggplot() + geom_line(aes(date, Value)) + labs(x="Year", y="Value Strategy Returns") + theme_bw()
 
 ```
 
 
-```{r}
+```{r, fig.cap="Bloomberg Dollar Spot Index"}
 
 consolidated_ZAR %>% ggplot() + geom_line(aes(date, BBDXY)) + labs(x="Year", y="Dollar Spot Index") + theme_bw()
 
 ```
+In a (completely) informal way, comparing the above figures for the Bloomberg Dollar Spot Index and the performance of the Rand, one can see that these two seem to have a positive relationship; when the Dollar is getting stronger, the Rand benefits.
 
+Below, a scatterplot is fit in order to examine this relationship in a 
 
+```{r, fig.cap="Relationship between ZAR Spot and Dollar Spot Index"}
+consolidated_ZAR %>% ggplot(aes(x=BBDXY, y=Spot)) + geom_point() +geom_smooth(method=lm) + theme_bw()
+```
 
+Indeed from the scatterplot above, the relationship appears to be confirmed, with the ZAR spot and the Dollar Spot Index having a correlation of `r cor.test(x=consolidated_ZAR$BBDXY, y=consolidated_ZAR$Spot, method="pearson")$estimate` (p-value=`r cor.test(x=consolidated_ZAR$BBDXY, y=consolidated_ZAR$Spot, method="pearson")$p.value`).
 
+\newpage
+
+# MV-GARCH {-}
+
+```{r, include=FALSE}
+sum(is.na(cncy$Price)) # no NA's
+cncy_xts <- cncy %>% group_by(Name) %>% mutate(scaledprice=Price-mean(Price)) %>%
+  ungroup() %>%
+  tbl_xts(., cols_to_xts='Price', spread_by='Name') %>%
+  .[lubridate::wday(.) %in% 2:6] %>% .[, !colSums(is.na(.)) > 0] # restricting to only weekdays and eliminating columns with NA's
+
+# MarchTest(cncy_xts, lag=10) # Conditional heteroskedasticity 
+
+  # commented out because this test had delivered p-values=0 and significant test statistics. Once I attempted to knit the final version of this README got **error that systen is computationally singular. Rather than discard the rest of the analysis, I continued without conducting the Heteroskedasticity test to determine the appropriateness of MVGARCH models.
+```
+MARCH test is a MV Portmanteau test where H0: no conditional heteroskedasticity.
+
+All the test statistics are significant (p-value less than zero), reject H0, therefore Multivariate GARCH model is appropriate. 
+
+```{r, include=FALSE}
+cncy_VAR <- VAR(cncy_xts, p=1)
+res <- cncy_VAR$residuals
+
+# MarchTest(res)
+  # See comment in chunk above.
+```
+The null hypothesis is again rejected, confirming that Multivariate Volatility models are appropriate.
+In the following lines of code, a DCC model will be fit.
+
+```{r, include=FALSE}
+DCCPre <- dccPre(cncy_xts, include.mean = F, p = 0)
+Vol <- DCCPre$marVol
+colnames(Vol) <- colnames(cncy_xts)
+
+Vol <- data.frame( cbind( date = index(cncy_xts), Vol)) %>% # Adding a date column
+  mutate(date = as.Date(date)) %>%  tbl_df()
+
+TidyVol <- Vol %>% gather(Cncy, Sigma, -date)
+```
+
+```{r, fig.cap="Currency Volatilities"}
+ggplot(TidyVol) + geom_line(aes(x = date, y = Sigma, colour = Cncy)) + theme_bw()
+```
+
+From the above figure, one can see that the ZAR has indeed been one of the most volatile currencies over the past few decades.
 
 
 

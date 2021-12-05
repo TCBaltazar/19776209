@@ -27,11 +27,11 @@ pacman::p_load(modelsummary, gt, knitr, kableExtra, tidyverse, lubridate)
 
 \newpage
 
-# Introduction 
+# Introduction {-}
 
 In this section, data on the ALSI and SWIX top 40 Indexes is used to conduct analysis. The performance of stocks will be compared, and stratification (using data on the USDZAR rate) will be used to compare the return profiles of these indeces during periods of low and high currency volatility. 
 
-# Data
+# Data {-}
 
 ```{r, include=FALSE}
 T40 <- read_rds("/Users/tiagob/Documents/Masters 2021/Second Semester/Financial Econometrics/data/T40.rds")
@@ -112,7 +112,7 @@ sum(is.na(T40$Size)) # No missing values
 
 Previously, there were 340 missing Index_Names. After classifying the missing stocks as mid_caps, there are none.
 
-# Exploratory Analysis 
+# Exploratory Analysis {-}
 
 In this section, three figures are presented displaying the behavior of the returns series over time.
 
@@ -138,8 +138,9 @@ T40 %>% select(date, SWIX, ALSI) %>%
 ```
 
 
+\newpage
 
-# Stratification Analysis using USDZAR
+# Stratification Analysis using USDZAR {-}
 
 ```{r, include=FALSE}
 USDZAR <- USDZAR %>% filter(date>ymd(20080101)) %>% # need to restrict T40 data for Tickers that have data until this date.
@@ -191,13 +192,22 @@ perf_lo_Indeces <- Perf_Comparisons_Indeces(T40_Indeces, YMs=Lo_Vol, Alias = "Lo
 
 ```
 
-## Results
+\newpage
+
+## Results {-}
+
 
 ```{r}
-left_join(perf_hi_Indeces, perf_lo_Indeces, by="Index") %>% kable(caption="Index Performance: Currency Volatility",  format="html", digits=2, col.names=c("Index", "SD_H", "Full_SD_H", "Period", "Ratio_H", "SD_L", "Full_SD_L", "Period", "Ratio_L"))
+perf_hi_Indeces %>% kable(caption="Index Performance: High Volatility",  format="html", digits=2)
 ```
 
-From the above table, one can see that, during periods of high currency volatility, the SWIX (J400) index exhibits higher volatility, whereas during periods of lower currency volatility, the ALSI (J200) has a lower volatility, as implied by the standard deviation.
+From the index performance tables (Tables 2 & 3), one can see that, during periods of high currency volatility, the SWIX (J400) index exhibits higher volatility, whereas during periods of lower currency volatility, the ALSI (J200) has a lower volatility, as implied by the standard deviation.
+
+```{r}
+perf_lo_Indeces %>% kable(caption="Index Performance: Low Volatility",  format="html", digits=2)
+```
+
+
 
 
 
